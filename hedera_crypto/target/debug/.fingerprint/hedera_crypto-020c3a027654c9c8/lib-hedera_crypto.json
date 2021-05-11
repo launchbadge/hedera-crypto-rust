@@ -1,0 +1,1 @@
+{"rustc":18250536222580762119,"features":"[]","target":11179275262275490388,"profile":14673113333635728996,"path":10872709659218687626,"deps":[[17131443760957912633,"ed25519_dalek",false,658249081181863972]],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/hedera_crypto-020c3a027654c9c8/dep-lib-hedera_crypto"}}],"rustflags":[],"metadata":17376955090582256659,"config":0}

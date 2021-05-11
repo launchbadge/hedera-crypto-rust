@@ -1,0 +1,2 @@
+cargo:rustc-env=TYPENUM_BUILD_CONSTS=/home/leahwhalen/Documents/hedera-sdk-rust/hedera_crypto/target/debug/build/typenum-14627307ffedbf93/out/consts.rs
+cargo:rustc-env=TYPENUM_BUILD_OP=/home/leahwhalen/Documents/hedera-sdk-rust/hedera_crypto/target/debug/build/typenum-14627307ffedbf93/out/op.rs
