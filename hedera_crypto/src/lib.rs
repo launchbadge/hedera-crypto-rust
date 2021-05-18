@@ -1,3 +1,5 @@
+mod public_key;
+
 #[cfg(test)]
 mod tests {
     #[test]

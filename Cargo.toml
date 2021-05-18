@@ -5,9 +5,12 @@ authors = ["LaunchBadge <contact@launchbadge.com>"]
 edition = "2018"
 
 [workspace]
-members = ["hedera/src/lib.rs", "hedera_crypto/src/lib.rs"]
+members = ["hedera", "hedera_crypto"]
 exclude = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[dependencies.ed25519-dalek]
+version = "1"
