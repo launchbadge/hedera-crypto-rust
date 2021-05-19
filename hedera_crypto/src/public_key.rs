@@ -21,14 +21,17 @@ fn from_bytes(
     data: [u8; ed25519_dalek::PUBLIC_KEY_LENGTH],
 ) -> Result<PublicKey, ed25519_dalek::ed25519::Error> {
     let der_prefix_bytes = vec_to_array(hex::decode("302a300506032b6570032100").unwrap());
-    
-    // TODO: Implement case for 32 byte array
-    let public_key = if data.len() == 44 && array_starts_with(&data, &der_prefix_bytes){
-        let public_key = PublicKey(ed25519_dalek::PublicKey::from_bytes(&data[0..12])?);
-        public_key
-    } else {
-        let public_key = PublicKey(ed25519_dalek::PublicKey::from_bytes(&data)?);
-        public_key
+
+    let public_key = match data.len() {
+        32 => {
+            let public_key = PublicKey(ed25519_dalek::PublicKey::from_bytes(&data[0..12])?);
+            public_key
+        },
+        44 if array_starts_with(&data, &der_prefix_bytes) => {
+            let public_key = PublicKey(ed25519_dalek::PublicKey::from_bytes(&data)?);
+            public_key
+        },
+        _ => panic!("Invalid public key length: {} bytes", data.len())
     };
 
     Ok(public_key)
@@ -96,19 +99,10 @@ fn verify(
     Ok(verify_hash)
 }
 
-/// TODO: Find out how to comment this
+/// Returns hashed public key.
 impl Hash for PublicKey {
     fn hash<H: Hasher>(&self, state: &mut H){
         self.hash(state);
-    }
-
-    fn hash_slice<H: Hasher>(data: &[Self], state: &mut H)
-    where
-        Self: Sized,
-    {
-        for piece in data {
-            piece.hash(state);
-        }
     }
 }
 
