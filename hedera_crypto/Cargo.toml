@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 hex = "0.4.3"
 ed25519-dalek = "1.0.1"
+thiserror = "1.0.24"
