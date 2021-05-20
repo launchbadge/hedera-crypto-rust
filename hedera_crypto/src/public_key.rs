@@ -8,7 +8,7 @@ use std::fmt;
 use std::convert::TryInto;
 
 /// A Public Key on the Hedera™ Network
-#[derive(Debug, Hash, Eq)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 struct PublicKey(ed25519_dalek::PublicKey);
 
 /// Returns a public key.
