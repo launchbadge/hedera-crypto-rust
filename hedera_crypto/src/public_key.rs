@@ -5,10 +5,10 @@ use std::str::FromStr;
 use std::num::ParseIntError;
 use std::fmt::{Display, Formatter};
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::convert::TryInto;
 
 /// A Public Key on the Hedera™ Network
+#[derive(Debug, Hash, Eq)]
 struct PublicKey(ed25519_dalek::PublicKey);
 
 /// Returns a public key.
@@ -97,27 +97,6 @@ fn verify(
 ) -> Result<(), ed25519_dalek::ed25519::Error> {
     let verify_hash = ed25519_dalek::Verifier::verify(&public_key, &message, &signature)?;
     Ok(verify_hash)
-}
-
-/// Returns hashed public key.
-impl Hash for PublicKey {
-    fn hash<H: Hasher>(&self, state: &mut H){
-        self.hash(state);
-    }
-}
-
-/// Returns a boolean.
-///
-/// # Arguments
-///
-/// * `&self` - That instance of PublicKey.
-///
-/// * `other` - Comparison to &self instance of PublicKey.
-///
-impl PartialEq for PublicKey {
-    fn eq(&self, other: &Self) -> bool {
-        self == other
-    }
 }
 
 /// # Arguments
