@@ -9,14 +9,12 @@ use std::str::FromStr;
 use thiserror::Error;
 
 const DER_PREFIX: &str = "302a300506032b6570032100";
-
-//TODO: add bytes to be returned for errors
 #[derive(Error, Debug)]
-enum KeyError {
-    #[error("Invalid public key length: bytes")]
+pub enum KeyError {
+    #[error("Invalid public key length: {0}")]
     Length(usize),
-    #[error("Invalid public key length: bytes")]
-    Signature(ed25519_dalek::SignatureError)
+    #[error(transparent)]
+    Signature(#[from] ed25519_dalek::SignatureError),
 }
 
 /// A Public Key on the Hedera™ Network
@@ -30,21 +28,27 @@ impl PublicKey {
     ///
     /// * `data` - An array of u8 with length of ed25519_dalek::PUBLIC_KEY_LENGTH.
     ///
-    fn from_bytes(
-        data: &[u8],
-    ) -> Result<PublicKey, KeyError> {
+    pub fn from_bytes(data: &[u8]) -> Result<PublicKey, KeyError> {
         let der_prefix_bytes = vec_to_array(hex::decode("302a300506032b6570032100").unwrap());
 
         let public_key = match data.len() {
             32 => {
-                let public_key = PublicKey(ed25519_dalek::PublicKey::from_bytes(&data[0..12]).unwrap());
+                let public_key = PublicKey(
+                    ed25519_dalek::PublicKey::from_bytes(&data)
+                        .map_err(KeyError::Signature)?,
+                );
                 public_key
             }
             44 if data.starts_with(&der_prefix_bytes) => {
-                let public_key = PublicKey(ed25519_dalek::PublicKey::from_bytes(&data).unwrap());
+                let public_key = PublicKey(
+                    ed25519_dalek::PublicKey::from_bytes(&data[0..12])
+                        .map_err(KeyError::Signature)?,
+                );
                 public_key
             }
-     
+            _ => {
+                return Err(KeyError::Length(data.len()));
+            }
         };
 
         Ok(public_key)
@@ -56,8 +60,8 @@ impl PublicKey {
     ///
     /// * `public_key` - ed25519_dalek::PublicKey
     ///
-    fn to_bytes(&self) -> [u8; ed25519_dalek::PUBLIC_KEY_LENGTH] {
-        self.to_bytes()
+    pub fn to_bytes(&self) -> [u8; ed25519_dalek::PUBLIC_KEY_LENGTH] {
+        self.0.to_bytes()
     }
 }
 
