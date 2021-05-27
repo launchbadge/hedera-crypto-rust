@@ -5,7 +5,6 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::hash::Hasher;
-//use std::num::ParseIntError;
 use std::str;
 use std::str::FromStr;
 use thiserror::Error;
@@ -131,6 +130,24 @@ mod tests {
         let public_key = PublicKey::from_bytes(&public_key_bytes)?;
 
         assert_eq!(&public_key.to_bytes(), public_key_bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bytes() -> Result<(), KeyError> {
+        let public_key_bytes: &[u8] = &[
+            215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114,
+            243, 218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
+        ];
+
+        let public_key = PublicKey::from_bytes(&public_key_bytes)?;
+
+        let key_to_bytes = PublicKey::to_bytes(&public_key);
+
+        println!("{:?}", public_key_bytes);
+        println!("{:?}", key_to_bytes);
+        assert_eq!(key_to_bytes, public_key_bytes);
 
         Ok(())
     }
