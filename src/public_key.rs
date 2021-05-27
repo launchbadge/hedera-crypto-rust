@@ -34,8 +34,7 @@ impl PublicKey {
         let public_key = match data.len() {
             32 => {
                 let public_key = PublicKey(
-                    ed25519_dalek::PublicKey::from_bytes(&data)
-                        .map_err(KeyError::Signature)?,
+                    ed25519_dalek::PublicKey::from_bytes(&data).map_err(KeyError::Signature)?,
                 );
                 public_key
             }
