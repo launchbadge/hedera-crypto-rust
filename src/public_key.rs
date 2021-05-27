@@ -1,18 +1,22 @@
-use ed25519_dalek;
+use ed25519_dalek::{Signature, Verifier};
 use hex;
-use std::convert::TryInto;
+use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::num::ParseIntError;
 use std::str;
 use std::str::FromStr;
 use thiserror::Error;
 
 const DER_PREFIX: &str = "302a300506032b6570032100";
-#[derive(Error, Debug)]
+
+#[derive(Debug, Error)]
 pub enum KeyError {
-    #[error("Invalid public key length: {0}")]
+    #[error("invalid public key length: {0}")]
     Length(usize),
+
     #[error(transparent)]
     Signature(#[from] ed25519_dalek::SignatureError),
 }
@@ -20,6 +24,15 @@ pub enum KeyError {
 /// A Public Key on the Hedera™ Network
 #[derive(Debug, Eq, PartialEq)]
 pub struct PublicKey(ed25519_dalek::PublicKey);
+
+impl Hash for PublicKey {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.0.as_bytes().hash(state)
+    }
+}
 
 impl PublicKey {
     /// Returns a public key.
@@ -29,7 +42,7 @@ impl PublicKey {
     /// * `data` - An array of u8 with length of ed25519_dalek::PUBLIC_KEY_LENGTH.
     ///
     pub fn from_bytes(data: &[u8]) -> Result<PublicKey, KeyError> {
-        let der_prefix_bytes = vec_to_array(hex::decode("302a300506032b6570032100").unwrap());
+        let der_prefix_bytes = hex::decode("302a300506032b6570032100").unwrap();
 
         let public_key = match data.len() {
             32 => {
@@ -38,6 +51,7 @@ impl PublicKey {
                 );
                 public_key
             }
+
             44 if data.starts_with(&der_prefix_bytes) => {
                 let public_key = PublicKey(
                     ed25519_dalek::PublicKey::from_bytes(&data[0..12])
@@ -45,6 +59,7 @@ impl PublicKey {
                 );
                 public_key
             }
+
             _ => {
                 return Err(KeyError::Length(data.len()));
             }
@@ -62,62 +77,53 @@ impl PublicKey {
     pub fn to_bytes(&self) -> [u8; ed25519_dalek::PUBLIC_KEY_LENGTH] {
         self.0.to_bytes()
     }
-}
 
-/// Return a string.
-impl Display for PublicKey {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let to_string = DER_PREFIX.to_string() + &hex::encode(self.to_string());
-        write!(f, "{}", to_string)
+    // TODO: docs
+    pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
+        let signature = if let Ok(signature) = Signature::try_from(signature) {
+            signature
+        } else {
+            return false;
+        };
+
+        self.0.verify(message, &signature).is_ok()
     }
 }
 
-/// Parse a public key from a string og hexidecimal digits.
-///
-/// The public key map optionally be prefixed with
-/// the DER header.
-///
-/// Returns a public key.
-///
-/// # Arguments
-///
-/// * `text` - string
-///
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}{}", DER_PREFIX, hex::encode(self.0.as_bytes()))
+    }
+}
+
 impl FromStr for PublicKey {
     type Err = ParseIntError;
+
+    // TODO: return KeyError
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        let decoded_public_key = vec_to_array(hex::decode(&text).unwrap());
+        // TODO: do not unwrap
+        let decoded_public_key = hex::decode(&text).unwrap();
         let public_key = PublicKey::from_bytes(&decoded_public_key).unwrap();
 
         Ok(public_key)
     }
 }
 
-/// Verify a signature on a message with this public key.
-///
-/// Returns a boolean.
-///
-/// # Arguments
-///
-/// * `message` - An array of u8 with length of ed25519_dalek::PUBLIC_KEY_LENGTH.
-///
-/// * `signature` - ed25519_dalek::Signature
-///
-fn verify(
-    public_key: ed25519_dalek::PublicKey,
-    message: [u8; ed25519_dalek::PUBLIC_KEY_LENGTH],
-    signature: ed25519_dalek::Signature,
-) -> Result<(), ed25519_dalek::ed25519::Error> {
-    let verify_hash = ed25519_dalek::Verifier::verify(&public_key, &message, &signature)?;
-    Ok(verify_hash)
-}
+#[cfg(test)]
+mod tests {
+    use super::{KeyError, PublicKey};
 
-/// # Arguments
-///
-/// * `v` - vector of generic type T.
-///
-fn vec_to_array<T>(v: Vec<T>) -> [T; ed25519_dalek::PUBLIC_KEY_LENGTH] {
-    v.try_into().unwrap_or_else(|v: Vec<T>| {
-        panic!("Expected a Vec of length {} but it was {}", 32, v.len())
-    })
+    #[test]
+    fn parse_from_bytes() -> Result<(), KeyError> {
+        let public_key_bytes: &[u8] = &[
+            215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114,
+            243, 218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
+        ];
+
+        let public_key = PublicKey::from_bytes(&public_key_bytes)?;
+
+        assert_eq!(&public_key.to_bytes(), public_key_bytes);
+
+        Ok(())
+    }
 }
