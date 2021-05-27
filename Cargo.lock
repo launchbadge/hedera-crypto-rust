@@ -97,12 +97,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "hedera-sdk-rust"
-version = "0.1.0"
-
-[[package]]
 name = "hedera_crypto"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "ed25519-dalek",
  "hex",

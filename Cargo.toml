@@ -1,12 +1,10 @@
 [package]
-name = "hedera-sdk-rust"
-version = "0.1.0"
-authors = ["LaunchBadge <contact@launchbadge.com>"]
+name = "hedera_crypto"
+version = "0.0.0"
 edition = "2018"
+authors = ["LaunchBadge <contact@launchbadge.com>"]
 
-[workspace]
-members = ["hedera/src/lib.rs", "hedera_crypto"]
-exclude = []
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
+hex = "0.4.3"
+ed25519-dalek = "1.0.1"
+thiserror = "1.0.24"
