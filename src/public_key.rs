@@ -5,7 +5,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::hash::Hasher;
-use std::num::ParseIntError;
+//use std::num::ParseIntError;
 use std::str;
 use std::str::FromStr;
 use thiserror::Error;
@@ -54,7 +54,7 @@ impl PublicKey {
 
             44 if data.starts_with(&der_prefix_bytes) => {
                 let public_key = PublicKey(
-                    ed25519_dalek::PublicKey::from_bytes(&data[0..12])
+                    ed25519_dalek::PublicKey::from_bytes(&data[12..44])
                         .map_err(KeyError::Signature)?,
                 );
                 public_key
@@ -78,7 +78,16 @@ impl PublicKey {
         self.0.to_bytes()
     }
 
-    // TODO: docs
+    /// Verify a signature on a message with this public key.
+    ///
+    /// # Arguments
+    ///
+    /// `&self` - current instance of PublicKey type.
+    ///
+    /// `message` - slice &[u8]
+    ///
+    /// `signature` - slice &[u8]
+    ///
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
         let signature = if let Ok(signature) = Signature::try_from(signature) {
             signature
@@ -97,18 +106,17 @@ impl Display for PublicKey {
 }
 
 impl FromStr for PublicKey {
-    type Err = ParseIntError;
+    type Err = KeyError;
 
-    // TODO: return KeyError
-    fn from_str(text: &str) -> Result<Self, Self::Err> {
-        // TODO: do not unwrap
+    fn from_str(text: &str) -> Result<Self, KeyError> {
         let decoded_public_key = hex::decode(&text).unwrap();
-        let public_key = PublicKey::from_bytes(&decoded_public_key).unwrap();
+        let public_key = PublicKey::from_bytes(&decoded_public_key)?;
 
         Ok(public_key)
     }
 }
 
+// TODO: Add more tests 
 #[cfg(test)]
 mod tests {
     use super::{KeyError, PublicKey};
