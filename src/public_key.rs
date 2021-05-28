@@ -115,40 +115,88 @@ impl FromStr for PublicKey {
     }
 }
 
-// TODO: Add more tests 
 #[cfg(test)]
 mod tests {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    use std::str::FromStr;
+
     use super::{KeyError, PublicKey};
+
+    const PUBLIC_KEY_BYTES: &[u8] = &[
+        215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114, 243,
+        218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
+    ];
 
     #[test]
     fn parse_from_bytes() -> Result<(), KeyError> {
-        let public_key_bytes: &[u8] = &[
-            215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114,
-            243, 218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
-        ];
+        let public_key = gen_public_key()?;
 
-        let public_key = PublicKey::from_bytes(&public_key_bytes)?;
-
-        assert_eq!(&public_key.to_bytes(), public_key_bytes);
+        assert_eq!(&public_key.to_bytes(), PUBLIC_KEY_BYTES);
 
         Ok(())
     }
 
     #[test]
     fn test_to_bytes() -> Result<(), KeyError> {
-        let public_key_bytes: &[u8] = &[
-            215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114,
-            243, 218, 166, 35, 37, 175, 2, 26, 104, 247, 7, 81, 26,
-        ];
-
-        let public_key = PublicKey::from_bytes(&public_key_bytes)?;
+        let public_key = gen_public_key()?;
 
         let key_to_bytes = PublicKey::to_bytes(&public_key);
 
-        println!("{:?}", public_key_bytes);
-        println!("{:?}", key_to_bytes);
-        assert_eq!(key_to_bytes, public_key_bytes);
+        assert_eq!(key_to_bytes, PUBLIC_KEY_BYTES);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_verify() -> Result<(), KeyError> {
+        let public_key = PublicKey::from_bytes(PUBLIC_KEY_BYTES)?;
+        let message = b"hello, world";
+        let signature = &[157, 4, 191, 237, 123, 170, 151, 200, 13, 41, 166, 174];
+
+        println!("{}", PublicKey::verify(&public_key, message, signature));
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_string() -> Result<(), KeyError> {
+        let public_key = gen_public_key()?;
+        let test_string = "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
+
+        assert_eq!(public_key.to_string(), test_string);
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_string() -> Result<(), KeyError> {
+        let public_key = gen_public_key()?;
+
+        let key_to_string = public_key.to_string();
+
+        let string_to_key = PublicKey::from_str(&key_to_string).unwrap();
+
+        assert_eq!(string_to_key, public_key);
+        Ok(())
+    }
+
+    #[test]
+    fn test_hash() -> Result<(), KeyError> {
+        let public_key = gen_public_key()?;
+        let hashed_key = hash_key(&public_key);
+
+        assert_eq!(hashed_key, 17835864368987990728);
+
+        Ok(())
+    }
+
+    fn gen_public_key() -> Result<PublicKey, KeyError> {
+        let public_key = PublicKey::from_bytes(&PUBLIC_KEY_BYTES)?;
+        Ok(public_key)
+    }
+
+    fn hash_key<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
     }
 }
