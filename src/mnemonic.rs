@@ -1,6 +1,6 @@
-use ed25519_dalek;
-use bip39::Mnemonic;
+use bip39::{Mnemonic, Language};
 use thiserror::Error;
+use rand;
 
 #[derive(Debug, Error)]
 pub enum PhraseError {
@@ -9,29 +9,26 @@ pub enum PhraseError {
 }
 
 // Mnemonic phrase struct
+#[derive(Debug)]
 pub struct MnemonicWords {
-    props_words : Vec<String>,
+    props_words : Mnemonic,
     props_legacy : bool,
 }
 
-/*
+
 impl MnemonicWords {
     fn generate(length: usize) -> Result<MnemonicWords, PhraseError>{
-        let mut needed_entropy = 0;
-
-        let needed_entropy = match length {
-            12 => needed_entropy = 16,
-            24 => needed_entropy = 32,
-            _ => return Err(PhraseError::Length(length))
-        };
         
-        const seed = 
+        println!("{}", length);
+        let mut rng = rand::thread_rng();
+        let words = Mnemonic::generate_in_with(&mut rng, Language::English, length).unwrap();
+        println!("{:?}", words);
 
-        Ok(MnemonicWords { props_words: , props_legacy: false })
+
+        Ok(MnemonicWords { props_words: words, props_legacy: false })
 
     }
 }
-*/
 
 //todo read(password) -> PrivateKey
 fn read( password : String ) -> String {
@@ -39,3 +36,14 @@ fn read( password : String ) -> String {
 }
 
 //todo write(PrivateKey, password)
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate() {
+        let test = MnemonicWords::generate(24).unwrap();
+        println!("{:?}", test);
+    }
+}
