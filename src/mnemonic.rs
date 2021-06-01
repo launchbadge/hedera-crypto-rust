@@ -1,10 +1,10 @@
 use std::str::FromStr;
-
-use bip39::{Language, Mnemonic};
 use pad::{Alignment, PadStr};
 use rand;
 use sha2::{Digest, Sha384};
+use bip39::{Mnemonic, Language};
 use thiserror::Error;
+use rand;
 
 use crate::legacy_words::LEGACY_WORDS;
 
