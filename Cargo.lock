@@ -133,7 +133,10 @@ dependencies = [
  "ed25519-dalek",
  "hex",
  "rand 0.8.3",
+ "rand_core 0.4.2",
+ "sha2",
  "thiserror",
+ "to-binary",
 ]
 
 [[package]]
@@ -352,6 +355,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "to-binary"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4424552bc848fd1afbcd81f0e8a54b7401b90fd81bb418655ad6dc6d0823bbe3"
+dependencies = [
+ "hex",
 ]
 
 [[package]]
