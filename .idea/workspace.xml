@@ -5,15 +5,14 @@
       <configuration PROFILE_NAME="Debug" CONFIG_NAME="Debug" ENABLED="true" />
     </configurations>
   </component>
-  <component name="CargoProjects">
-    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
-  </component>
   <component name="ChangeListManager">
     <list default="true" id="49e60ad9-1241-4852-bfa1-55cce04bb2bc" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/hedera_crypto/src/keystore.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hedera_crypto/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/hedera_crypto/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hedera_crypto/target/debug/.fingerprint/hedera_crypto-063a60ef86771b49/lib-hedera_crypto" beforeDir="false" afterPath="$PROJECT_DIR$/hedera_crypto/target/debug/.fingerprint/hedera_crypto-063a60ef86771b49/lib-hedera_crypto" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/hedera_crypto/target/debug/deps/libhedera_crypto-063a60ef86771b49.rlib" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hedera_crypto/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/hedera_crypto/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hedera_crypto/src/keystore.rs" beforeDir="false" afterPath="$PROJECT_DIR$/hedera_crypto/src/keystore.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/hedera_crypto/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/hedera_crypto/src/lib.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -78,6 +77,7 @@
       <option name="presentableId" value="Default" />
       <updated>1620423746340</updated>
       <workItem from="1620423747455" duration="21434000" />
+      <workItem from="1622653204206" duration="1367000" />
     </task>
     <servers />
   </component>
@@ -94,5 +94,6 @@
         </entry>
       </map>
     </option>
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
 </project>
