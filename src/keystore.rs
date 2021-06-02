@@ -25,17 +25,17 @@ impl KeyStore {
         const dkLen : i32 = 32;
         const c : i32 = 262144;
         const saltLen : i32 = 32;
-        const salt = rand::thread_rng().gen::<[u8; dkLen]>().await;
+        let salt = rand::thread_rng().gen::<[u8; dkLen]>().await;
 
-        // const key = pbkdf2.deriveKey(
-        //     hmac.HashAlgorithm.Sha256,
-        //     passphrase,
-        //     salt,
-        //     c,
-        //     dkLen
-        // ).await();
+        let key = pbkdf2.deriveKey(
+            hmac.HashAlgorithm.Sha256,
+            passphrase,
+            salt,
+            c,
+            dkLen
+        ).await;
 
-        //const iv = rand::thread_rng().gen::<[u8; 16]>().await();
+        let iv = rand::thread_rng().gen::<[u8; 16]>().await;
 
         // const cipherText = crypto.createCipheriv(
         //     crypto.CipherAlgorithm.Aes128Ctr,
