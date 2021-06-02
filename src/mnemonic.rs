@@ -5,6 +5,7 @@ use sha2::{Digest, Sha384};
 use bip39::{Mnemonic, Language};
 use thiserror::Error;
 use rand;
+use thiserror::Error;
 
 use crate::legacy_words::LEGACY_WORDS;
 
