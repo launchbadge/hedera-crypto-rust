@@ -4,8 +4,11 @@ use rand;
 
 #[derive(Debug, Error)]
 pub enum PhraseError {
-    #[error("unsupported phrase length {0}, only 12 or 24 are supported")]
-    Length(usize),
+    // TODO: Figure out the problem with Length
+    #[error("Entropy Length Received: {0}. Only 12 and 24 are supported.")]
+    BadEntropyLength(usize),
+    #[error(transparent)]
+    Error(#[from] bip39::Error),
 }
 
 // Mnemonic phrase struct
@@ -17,11 +20,22 @@ pub struct MnemonicWords {
 
 
 impl MnemonicWords {
-    fn generate(length: usize) -> Result<MnemonicWords, PhraseError>{
-        
-        println!("{}", length);
+    pub fn generate(length: usize) -> Result<MnemonicWords, PhraseError>{
+
         let mut rng = rand::thread_rng();
-        let words = Mnemonic::generate_in_with(&mut rng, Language::English, length).unwrap();
+        // Test to see if correct length
+        println!("{}", length);
+
+        let words = match length {
+            12 | 24 => {
+                println!("start");
+                let words = Mnemonic::generate_in_with(&mut rng, Language::English, length).map_err(PhraseError::Error)?;
+                words
+            }
+            _ => {
+                return Err(PhraseError::BadEntropyLength(length));
+            }
+        };
         println!("{:?}", words);
 
 
@@ -43,7 +57,7 @@ mod tests {
 
     #[test]
     fn test_generate() {
-        let test = MnemonicWords::generate(24).unwrap();
+        let test = MnemonicWords::generate(19).unwrap();
         println!("{:?}", test);
     }
 }
