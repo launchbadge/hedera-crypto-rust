@@ -122,7 +122,6 @@ mod tests {
     #[test]
     fn parse_from_bytes() -> Result<(), KeyError> {
         let public_key = gen_public_key()?;
-
         assert_eq!(&public_key.to_bytes(), PUBLIC_KEY_BYTES);
 
         Ok(())
@@ -153,7 +152,6 @@ mod tests {
     fn test_to_string() -> Result<(), KeyError> {
         let public_key = gen_public_key()?;
         let test_string = "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
-
         assert_eq!(public_key.to_string(), test_string);
         Ok(())
     }

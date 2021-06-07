@@ -1,8 +1,12 @@
+use std::str::FromStr;
+
 use bip39::{Language, Mnemonic};
 use pad::{Alignment, PadStr};
 use rand;
 use sha2::{Digest, Sha384};
 use thiserror::Error;
+
+use crate::legacy_words::LEGACY_WORDS;
 
 #[derive(Debug, Error)]
 pub enum MnemError {
@@ -81,29 +85,13 @@ impl MnemonicWords {
     //
     // * `words` - List of strings
     //
-    pub fn from_words(words: &[&str]) {
-    // -> Result<MnemonicWords, MnemError> {
-        let word_count = words.len();
-        
-        // Gotta fix this crap
+    pub fn from_words(word_list: Mnemonic) -> Result<MnemonicWords, MnemError> {
+        let word_count = word_list.word_count();
 
-        // let mut test: = new Mnemonic();
-        // for word in words {
-        //     test.push(Mnemonic::parse(word));
-        // }
-
-        // println!("{:?}", test);
-
-        // //let validate_mnemonic = words.validate();
-        // let new_mnemonic = Mnemonic {
-        //     words: test,
-        //     lang: Language::English,
-        // };
-
-        // Ok(MnemonicWords {
-        //     props_words: new_mnemonic,
-        //     props_legacy: word_count == 22,
-        // }) // TODO: Validate Mnemonic
+        Ok(MnemonicWords {
+            props_words: word_list,
+            props_legacy: word_count == 22,
+        }) // TODO: Connect to validate()
     }
 
     // TODO: Need Private Key Library to finish
@@ -138,20 +126,17 @@ impl MnemonicWords {
     ///
     /// `mnemonic` - a Mnemonic string.
     //
-    pub fn from_string(mnemonic: &str) {
-    // -> Result<MnemonicWords, MnemError> {
-        let test = mnemonic.split(r"/\s|,/");
-        let string_vec = test.collect::<Vec<&str>>();
-        println!("{:?}", string_vec);
-        //let new_mnem = MnemonicWords::from_words(&string_vec)?;
-        // Ok(MnemonicWords {
-        //     props_words: new_mnem.props_words,
-        //     props_legacy: false,
-        // })
+    pub fn from_string(mnemonic: &str) -> Result<MnemonicWords, MnemError> {
+        let mnem = Mnemonic::from_str(mnemonic).unwrap();
+
+        let new_mnem = MnemonicWords::from_words(mnem)?;
+        Ok(MnemonicWords {
+            props_words: new_mnem.props_words,
+            props_legacy: false,
+        })
     }
 
-
-    // TODO: Finish this thing
+    // TODO: Finish Validate
 
     /// Returns a Menmonic
     ///
@@ -164,7 +149,22 @@ impl MnemonicWords {
             if Mnemonic::word_count(&self.props_words) != 22 {
                 return Err(MnemError::Length(Mnemonic::word_count(&self.props_words)));
             }
-            // let unknown_word_indices = self.props_words.word_iter();
+
+            let unknown_word_indices: usize = 0;
+            // TODO: Figure out how to access indeces of prop_words and compare
+            //       with indeces of LEGACY_WORDS to get unknown_word_count
+
+            // for j in 0..LEGACY_WORDS.len() {
+            //     if self.props_words.contains(LEGACY_WORDS[j]) {
+            //         unknown_word_indices += 1;
+            //     }
+
+            // }
+        } else {
+            if !(self.props_words.word_count() == 12 || self.props_words.word_count() == 24) {
+                return Err(MnemError::Length(Mnemonic::word_count(&self.props_words)));
+            }
+            // TODO: a lot
         }
 
         Ok(self)
@@ -271,21 +271,24 @@ mod tests {
         Ok(())
     }
 
+    // TODO: Finish test
     #[test]
     fn test_from_words() -> Result<(), MnemError> {
-        
-        let words = &["hidden dry document virtual squeeze grace daring orphan fancy link size remember"];
-        MnemonicWords::from_words(words);
+        //let words =
+        &["hidden dry document virtual squeeze grace daring orphan fancy link size remember"];
+
         Ok(())
     }
 
+    // TODO: Finish test
     #[test]
-    fn test_from_string() {
+    fn test_from_string() -> Result<(), MnemError> {
         let test = "yellow wedding ugly planet awkward trumpet virus spend rather net bamboo burst";
-        MnemonicWords::from_string(test);
+        println!("{:?}", MnemonicWords::from_string(test));
+        Ok(())
     }
 
-    // TODO
+    // TODO: Finish test
     #[test]
     fn test_validate() -> Result<(), MnemError> {
         Ok(())
