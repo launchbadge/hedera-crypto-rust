@@ -7,3 +7,4 @@ pub use key_error::KeyError;
 pub use private_key::PrivateKey;
 pub use public_key::PublicKey;
 pub use mnemonic::{MnemonicWords, MnemError};
+pub use public_key::{KeyError, PublicKey};
