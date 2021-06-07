@@ -16,7 +16,7 @@ pub type Credential = [u8; CREDENTIAL_LEN];
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
 // Create alias for HMAC-SHA256
-type HmacSha256 = Hmac<Sha384>;
+type HmacSha384 = Hmac<Sha384>;
 
 pub struct KeyStore();
 
@@ -41,21 +41,32 @@ impl KeyStore {
         buffer[..pos].copy_from_slice(private_key);
         let cipher_text = cipher.encrypt(&mut buffer, pos).unwrap();
 
-        // step 1: encode derived_key[16 .. derived_key.len()] and cipher_text
-
-        // step 2: run the HMAC functions
-
-        let mut mac = HmacSha384::new_from_slice(derived_key[16 .. derived_key.len()])
+        let mut mac = HmacSha384::new_from_slice(&derived_key[16 .. derived_key.len()])
             .expect("HMAC can take key of any size");
         mac.update(cipher_text);
 
+        // get auth code in bytes
         let result = mac.finalize();
+        let code_bytes = result.into_bytes();
 
-        // const mac = hmac.hash(
-        //     hmac.HashAlgorithm.Sha384,
-        //     key.slice(16),
-        //     cipherText
-        // );
+
+        // const keystore = {
+        //     version: 1,
+        //     crypto: {
+        //         ciphertext: hex.encode(cipherText),
+        //         cipherparams: { iv: hex.encode(iv) },
+        //         cipher: crypto.CipherAlgorithm.Aes128Ctr,
+        //         kdf: "pbkdf2",
+        //         kdfparams: {
+        //             dkLen,
+        //             salt: hex.encode(salt),
+        //             c,
+        //             prf: HMAC_SHA256,
+        //         },
+        //         mac: hex.encode(mac),
+        //     },
+        // };
+
     }
 }
 
