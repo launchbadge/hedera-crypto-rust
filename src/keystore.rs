@@ -131,18 +131,23 @@ impl KeyStore {
 #[cfg(test)]
 mod tests {
     use crate::keystore::KeyStore;
+    use hex::FromHex;
 
     #[test]
     fn create_keystore() {
-        let private_key: &[u8] = &[
-            -37 as u8, 72 as u8, 75 as u8, -126 as u8, -114 as u8, 100 as u8, -78 as u8, -40 as u8,
-            -15 as u8, 44 as u8, -29 as u8, -64 as u8, -96 as u8, -23 as u8, 58 as u8, 11 as u8,
-            -116 as u8, -50 as u8, 122 as u8, -15 as u8, -69 as u8, -113 as u8, 57 as u8,
-            -55 as u8, 119 as u8, 50 as u8, 57 as u8, 68 as u8, -126 as u8, 83 as u8, -114 as u8,
-            16 as u8,
-        ];
+        // let private_key: &[u8] = &[
+        //     -37 as u8, 72 as u8, 75 as u8, -126 as u8, -114 as u8, 100 as u8, -78 as u8, -40 as u8,
+        //     -15 as u8, 44 as u8, -29 as u8, -64 as u8, -96 as u8, -23 as u8, 58 as u8, 11 as u8,
+        //     -116 as u8, -50 as u8, 122 as u8, -15 as u8, -69 as u8, -113 as u8, 57 as u8,
+        //     -55 as u8, 119 as u8, 50 as u8, 57 as u8, 68 as u8, -126 as u8, 83 as u8, -114 as u8,
+        //     16 as u8,
+        // ];
 
-        let keystore: String = KeyStore::create_keystore(private_key, "hello".to_string());
+        let private_key: [u8; 32] = <[u8; 32]>::from_hex("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10u8").unwrap();
+
+        let keystore: String = KeyStore::create_keystore(&private_key, "asdf1234".to_string());
+
+        println!("{}", keystore);
 
         //assert_eq!(&private_key.to_bytes(), keystore);
     }
