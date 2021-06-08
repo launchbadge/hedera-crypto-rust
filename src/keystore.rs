@@ -1,8 +1,6 @@
 use ctr::cipher::{NewCipher, StreamCipher};
 use hmac::{Hmac, Mac, NewMac};
-use pbkdf2;
 use rand::Rng;
-use serde_json;
 use sha2::{Sha256, Sha384};
 use std::str;
 
@@ -76,7 +74,7 @@ impl KeyStore {
                 kdf: "pbkdf2".to_string(),
                 kdf_params: KDFParams {
                     dk_len: 32,
-                    salt: salt,
+                    salt,
                     c: 262144,
                     prf: "hmac-sha256".to_string(),
                 },
@@ -97,14 +95,14 @@ impl KeyStore {
             );
         }
 
-        if keystore.crypto.kdf != "pbkdf2".to_string() {
+        if keystore.crypto.kdf != *"pbkdf2".to_string() {
             panic!(
                 "unsupported key derivation function: {}",
-                keystore.crypto.kdf.to_string()
+                keystore.crypto.kdf
             );
         }
 
-        if keystore.crypto.kdf_params.prf != "hmac-sha256".to_string() {
+        if keystore.crypto.kdf_params.prf != *"hmac-sha256" {
             panic!(
                 "unsupported key derivation hash function: {}",
                 keystore.crypto.kdf_params.prf
@@ -143,11 +141,12 @@ mod tests {
         //     16 as u8,
         // ];
 
-        let private_key: [u8; 32] = <[u8; 32]>::from_hex("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10u8").unwrap();
+        //let private_key = <[u8; 64]>::from_hex("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10u8").expect("Decoding failed");
+        let private_key = hex::decode("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").expect("Decoding failed");
 
-        let keystore: String = KeyStore::create_keystore(&private_key, "asdf1234".to_string());
+        //let keystore: String = KeyStore::create_keystore(&private_key, "asdf1234".to_string());
 
-        println!("{}", keystore);
+        //println!("{}", keystore);
 
         //assert_eq!(&private_key.to_bytes(), keystore);
     }

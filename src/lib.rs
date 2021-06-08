@@ -1,5 +1,7 @@
+#![warn(unused_extern_crates)]
 mod key_error;
 mod private_key;
+
 mod keystore;
 mod public_key;
 pub use public_key::{KeyError, PublicKey};
