@@ -2,8 +2,9 @@ use ctr::cipher::{NewCipher, StreamCipher};
 use hmac::{Hmac, Mac, NewMac};
 use pbkdf2;
 use rand::Rng;
-use sha2::Sha384;
 use serde_json;
+use sha2::{Sha256, Sha384};
+use std::str;
 
 // CTR mode implementation is generic over block ciphers
 // we will create a type alias for convenience
@@ -11,16 +12,17 @@ type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
 
 // Create alias for HMAC-SHA256
 type HmacSha384 = Hmac<Sha384>;
+type HmacSha256 = Hmac<Sha256>;
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct KDFParams {
     dk_len: i32,
     salt: [u8; 32],
-    c: i32,
+    c: u32,
     prf: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Crypto {
     cipher_text: [u8; 32],
     cipher_params: [u8; 16],
@@ -29,7 +31,7 @@ pub struct Crypto {
     kdf_params: KDFParams,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct KeyStore {
     version: i32,
     crypto: Crypto,
@@ -39,13 +41,13 @@ pub struct KeyStore {
 // create keystore
 //      returns JSON String of keystore?
 impl KeyStore {
-    pub fn create_keystore(private_key: &[u8], pass: &[u8]) -> String {
+    pub fn create_keystore(private_key: &[u8], pass: String) -> String {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let salt = rand::thread_rng().gen::<[u8; 32]>();
         let iv = rand::thread_rng().gen::<[u8; 16]>();
 
-        pbkdf2::pbkdf2::<HmacSha384>(pass, &salt, c_iter, &mut derived_key);
+        pbkdf2::pbkdf2::<HmacSha256>(pass.as_bytes(), &salt, c_iter, &mut derived_key);
 
         // AES-128-CTR with the first half of the derived key and a random IV
         let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv).unwrap();
@@ -83,6 +85,47 @@ impl KeyStore {
         };
         serde_json::to_string(&keystore).unwrap()
     }
+
+    pub fn load_keystore(keystore_bytes: String, pass: String) {
+        let keystore: KeyStore = serde_json::from_str(&keystore_bytes).unwrap();
+
+        // todo: set up errors
+        if keystore.version != 1 {
+            panic!(
+                "keystore version not supported: {}",
+                keystore.version.to_string()
+            );
+        }
+
+        if keystore.crypto.kdf != "pbkdf2".to_string() {
+            panic!(
+                "unsupported key derivation function: {}",
+                keystore.crypto.kdf.to_string()
+            );
+        }
+
+        if keystore.crypto.kdf_params.prf != "hmac-sha256".to_string() {
+            panic!(
+                "unsupported key derivation hash function: {}",
+                keystore.crypto.kdf_params.prf
+            );
+        }
+
+        // todo: derive key
+        let mut derived_key: [u8; 32] = [0; 32];
+        pbkdf2::pbkdf2::<HmacSha256>(
+            pass.as_bytes(),
+            &keystore.crypto.kdf_params.salt,
+            keystore.crypto.kdf_params.c,
+            &mut derived_key,
+        );
+
+        // todo: verify mac
+
+        // todo: decipher iv
+
+        // todo: return keypair based on deciphered iv
+    }
 }
 
 #[cfg(test)]
@@ -99,7 +142,7 @@ mod tests {
             16 as u8,
         ];
 
-        //let keystore = KeyStore::create_keystore(private_key, format!("hello"));
+        let keystore: String = KeyStore::create_keystore(private_key, "hello".to_string());
 
         //assert_eq!(&private_key.to_bytes(), keystore);
     }
