@@ -3,6 +3,8 @@ use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use sha2::{Sha256, Sha384};
 use std::str;
+use actix_web::web::Json;
+use std::borrow::Cow;
 
 // CTR mode implementation is generic over block ciphers
 // we will create a type alias for convenience
@@ -17,15 +19,15 @@ pub struct KDFParams {
     dk_len: i32,
     salt: [u8; 32],
     c: u32,
-    prf: String,
+    prf: Cow<'static, str>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Crypto {
     cipher_text: [u8; 32],
     cipher_params: [u8; 16],
-    cipher: String,
-    kdf: String,
+    cipher: Cow<'static, str>,
+    kdf: Cow<'static, str>,
     kdf_params: KDFParams,
 }
 
@@ -37,9 +39,9 @@ pub struct KeyStore {
 }
 
 // create keystore
-//      returns JSON String of keystore?
+//      returns JSON buffer that is a keystore
 impl KeyStore {
-    pub fn create_keystore(private_key: &[u8], pass: String) -> String {
+    pub fn create_keystore(private_key: &[u8], pass: String) -> Json<KeyStore> {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let salt = rand::thread_rng().gen::<[u8; 32]>();
@@ -70,18 +72,18 @@ impl KeyStore {
             crypto: Crypto {
                 cipher_text: buffer,
                 cipher_params: iv,
-                cipher: "AES-128-CTR".to_string(),
-                kdf: "pbkdf2".to_string(),
+                cipher: Cow::Borrowed("AES-128-CTR"),
+                kdf: Cow::Borrowed("pbkdf2"),
                 kdf_params: KDFParams {
                     dk_len: 32,
                     salt,
                     c: 262144,
-                    prf: "hmac-sha256".to_string(),
+                    prf: Cow::Borrowed("hmac-sha256"),
                 },
             },
             mac: (&*code_bytes).to_vec(),
         };
-        serde_json::to_string(&keystore).unwrap()
+        Json(keystore)
     }
 
     pub fn load_keystore(keystore_bytes: String, pass: String) {
