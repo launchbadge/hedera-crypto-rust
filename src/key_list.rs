@@ -1,9 +1,12 @@
+use crate::key::Key;
 
-trait Keys {
-    fn keys(&self) -> Vec<Key>;
+pub struct KeyList {
+    keys: [Key],
+    threshold: i32,
 }
 
-trait Threshold {
-    fn thershold(&self) -> i32;
-}
+// todo: of(keys: vec[Key]) -> KeyList
 
+// todo: from(keys: vec[Key], mapFn: , T) -> KeyList
+
+// todo:

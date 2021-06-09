@@ -1,5 +1,8 @@
+use crate::public_key::PublicKey;
+use crate::key_list::KeyList;
+
+// todo: add private key when ready
 pub enum Key {
-    private_key(PrivateKey),
-    public_key(PublicKey),
-    key_list(KeyList),
+    PublicKey(PublicKey),
+    KeyList(KeyList),
 }
