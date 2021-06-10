@@ -41,7 +41,7 @@ pub struct KeyStore {
 // create keystore
 //      returns JSON buffer that is a keystore
 impl KeyStore {
-    pub fn create_keystore(private_key: &[u8], pass: String) -> Json<KeyStore> {
+    pub fn create_keystore(private_key: &[u8], pass: &str) -> Json<KeyStore> {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let salt = rand::thread_rng().gen::<[u8; 32]>();
@@ -86,15 +86,11 @@ impl KeyStore {
         Json(keystore)
     }
 
-    pub fn load_keystore(keystore_bytes: String, pass: String) {
-        let keystore: KeyStore = serde_json::from_str(&keystore_bytes).unwrap();
+    pub fn load_keystore(keystore: Json<KeyStore>, pass: &str) {
 
         // todo: set up errors
         if keystore.version != 1 {
-            panic!(
-                "keystore version not supported: {}",
-                keystore.version.to_string()
-            );
+            Err("keystore version not supported:");
         }
 
         if keystore.crypto.kdf != *"pbkdf2".to_string() {
