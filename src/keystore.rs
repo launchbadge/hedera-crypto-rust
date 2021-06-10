@@ -1,10 +1,10 @@
+use actix_web::web::Json;
 use ctr::cipher::{NewCipher, StreamCipher};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use sha2::{Sha256, Sha384};
-use std::str;
-use actix_web::web::Json;
 use std::borrow::Cow;
+use std::str;
 
 // CTR mode implementation is generic over block ciphers
 // we will create a type alias for convenience
@@ -24,7 +24,7 @@ pub struct KDFParams {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Crypto {
-    cipher_text: [u8; 32],
+    cipher_text: Vec<u8>,
     cipher_params: [u8; 16],
     cipher: Cow<'static, str>,
     kdf: Cow<'static, str>,
@@ -41,9 +41,10 @@ pub struct KeyStore {
 // create keystore
 //      returns JSON buffer that is a keystore
 impl KeyStore {
-    pub fn create_keystore(private_key: &[u8], pass: &str) -> Json<KeyStore> {
+    pub fn create_keystore(private_key: &[u8], pass: &str) -> KeyStore {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
+        let pk_len = private_key.len();
         let salt = rand::thread_rng().gen::<[u8; 32]>();
         let iv = rand::thread_rng().gen::<[u8; 16]>();
 
@@ -51,7 +52,7 @@ impl KeyStore {
 
         // AES-128-CTR with the first half of the derived key and a random IV
         let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv).unwrap();
-        let mut buffer = [0u8; 32];
+        let mut buffer = vec![0u8; pk_len];
 
         // copy message to the buffer
         let pos = private_key.len();
@@ -83,14 +84,13 @@ impl KeyStore {
             },
             mac: (&*code_bytes).to_vec(),
         };
-        Json(keystore)
+        keystore
     }
 
     pub fn load_keystore(keystore: Json<KeyStore>, pass: &str) {
-
         // todo: set up errors
         if keystore.version != 1 {
-            Err("keystore version not supported:");
+            panic!("keystore version not supported: {}", keystore.version);
         }
 
         if keystore.crypto.kdf != *"pbkdf2".to_string() {
@@ -127,25 +127,20 @@ impl KeyStore {
 #[cfg(test)]
 mod tests {
     use crate::keystore::KeyStore;
-    use hex::FromHex;
+    use actix_web::web::Json;
 
     #[test]
     fn create_keystore() {
-        // let private_key: &[u8] = &[
-        //     -37 as u8, 72 as u8, 75 as u8, -126 as u8, -114 as u8, 100 as u8, -78 as u8, -40 as u8,
-        //     -15 as u8, 44 as u8, -29 as u8, -64 as u8, -96 as u8, -23 as u8, 58 as u8, 11 as u8,
-        //     -116 as u8, -50 as u8, 122 as u8, -15 as u8, -69 as u8, -113 as u8, 57 as u8,
-        //     -55 as u8, 119 as u8, 50 as u8, 57 as u8, 68 as u8, -126 as u8, 83 as u8, -114 as u8,
-        //     16 as u8,
-        // ];
+        let mut private_key = [0u8; 32];
+        let hex_string = hex::decode_to_slice("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10", &mut private_key as &mut [u8]);
 
-        //let private_key = <[u8; 64]>::from_hex("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10u8").expect("Decoding failed");
-        let private_key = hex::decode("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").expect("Decoding failed");
+        let keystore: KeyStore = KeyStore::create_keystore(&private_key, "hello");
 
-        //let keystore: String = KeyStore::create_keystore(&private_key, "asdf1234".to_string());
+        println!("hello hello hello {:?}", keystore.crypto.kdf_params.salt);
 
-        //println!("{}", keystore);
+        let serialized_keystore = serde_json::to_string(&keystore).unwrap();
+        println!("{}", serialized_keystore);
 
-        //assert_eq!(&private_key.to_bytes(), keystore);
+        assert_eq!(keystore.version, 1);
     }
 }
