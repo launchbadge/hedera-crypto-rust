@@ -102,7 +102,6 @@ version = "0.0.0"
 dependencies = [
  "ed25519-dalek",
  "hex",
- "rand",
  "rand_core 0.6.2",
  "thiserror",
 ]
