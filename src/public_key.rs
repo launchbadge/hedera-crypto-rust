@@ -8,7 +8,6 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::str;
 use std::str::FromStr;
-use thiserror::Error;
 
 const DER_PREFIX: &str = "302a300506032b6570032100";
 
