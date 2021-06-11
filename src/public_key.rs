@@ -1,3 +1,4 @@
+use crate::key_error::KeyError;
 use ed25519_dalek::{Signature, Verifier};
 use hex;
 use std::convert::TryFrom;
@@ -10,15 +11,6 @@ use std::str::FromStr;
 use thiserror::Error;
 
 const DER_PREFIX: &str = "302a300506032b6570032100";
-
-#[derive(Debug, Error)]
-pub enum KeyError {
-    #[error("invalid public key length: {0}")]
-    Length(usize),
-
-    #[error(transparent)]
-    Signature(#[from] ed25519_dalek::SignatureError),
-}
 
 /// A Public Key on the Hedera™ Network
 #[derive(Debug, Eq, PartialEq)]
