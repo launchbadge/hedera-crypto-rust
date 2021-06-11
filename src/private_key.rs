@@ -113,76 +113,78 @@ impl FromStr for PrivateKey {
         Ok(private_key)
     }
 }
-// #[cfg(test)]
-// mod tests {
-//     use super::{KeyError, Keypair, PrivateKey, Signature, Signer, SIGNATURE_LENGTH};
-//     use ed25519_dalek::{SecretKey, SECRET_KEY_LENGTH};
-//     use rand::rngs::OsRng;
-//     use std::str::FromStr;
-//     const PRIVATE_KEY_BYTES: &[u8; SECRET_KEY_LENGTH] = &[
-//         -37, 72, 75, -126, -114, 100, -78, -40, -15, 44, -29, -64, -96, -23, 58, 11, -116, -50,
-//         122, -15, -69, -113, 57, -55, 119, 50, 57, 68, -126, 83, -114, 16,
-//     ];
-//     #[test]
-//     fn test_generate() -> Result<(), KeyError> {
-//         let private_key = PrivateKey::generate();
-//         assert_eq!(private_key.0.to_bytes().len(), 32 as usize);
-//         Ok(())
-//     }
-//     #[test]
-//     fn test_from_bytes() -> Result<(), KeyError> {
-//         let private_key = PrivateKey(SecretKey::from_bytes(PRIVATE_KEY_BYTES)?, None);
-//         assert_eq!(&private_key.0.to_bytes(), PRIVATE_KEY_BYTES);
-//         Ok(())
-//     }
-//     #[test]
-//     fn test_to_bytes() -> Result<(), KeyError> {
-//         let private_key = PrivateKey::from_bytes(PRIVATE_KEY_BYTES)?;
-//         assert_eq!(&PrivateKey::to_bytes(&private_key), PRIVATE_KEY_BYTES);
-//         Ok(())
-//     }
-//     #[test]
-//     fn test_public_key() -> Result<(), KeyError> {
-//         let mut csprng = OsRng {};
-//         let keypair = Keypair::generate(&mut csprng);
-//         let secret_to_bytes = keypair.secret.to_bytes();
-//         let private_from_bytes = PrivateKey::from_bytes(&secret_to_bytes);
-//         let private_to_bytes = PrivateKey::to_bytes(&private_from_bytes?);
-//         let private_from_bytes_2 = PrivateKey::from_bytes(&private_to_bytes);
-//         assert_eq!(
-//             PrivateKey::public_key(&private_from_bytes_2?),
-//             keypair.public
-//         );
-//         Ok(())
-//     }
-//     #[test]
-//     fn test_from_str() -> Result<(), KeyError> {
-//         let private_key = PrivateKey::from_bytes(PRIVATE_KEY_BYTES)?;
-//         let key_string = private_key.to_string();
-//         assert_eq!(
-//             PrivateKey::from_str(&key_string)?.to_string(),
-//             private_key.to_string()
-//         );
-//         Ok(())
-//     }
-//     #[test]
-//     fn test_to_string() -> Result<(), KeyError> {
-//         let private_key = PrivateKey::from_bytes(PRIVATE_KEY_BYTES)?;
-//         let private_str= "302e020100300506032b6570042204209d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
-//         assert_eq!(private_str, private_key.to_string());
-//         Ok(())
-//     }
-//     #[test]
-//     fn test_sign() -> Result<(), KeyError> {
-//         let mut csprng = rand::rngs::OsRng {};
-//         let keypair: Keypair = Keypair::generate(&mut csprng);
-//         let message: &[u8] = b"This is a test";
-//         let signature: Signature = keypair.sign(message);
-//         let signature_bytes: [u8; SIGNATURE_LENGTH] = signature.to_bytes();
-//         assert_eq!(
-//             PrivateKey::sign(&PrivateKey(keypair.secret, None), message),
-//             signature_bytes
-//         );
-//         Ok(())
-//     }
-// }
+
+#[cfg(test)]
+mod tests {
+    use super::{KeyError, PrivateKey, Signature, Signer, SIGNATURE_LENGTH};
+    use rand::{thread_rng, Rng};
+    use std::str::FromStr;
+
+    const PRIVATE_KEY_STR: &str = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
+
+    #[test]
+    fn test_generate() -> Result<(), KeyError> {
+        let private_key = PrivateKey::generate();
+        assert_eq!(private_key.keypair.secret.to_bytes().len(), 32 as usize);
+        Ok(())
+    }
+    #[test]
+    fn test_from_bytes() -> Result<(), KeyError> {
+        let private_key = PrivateKey::from_str(PRIVATE_KEY_STR)?;
+        assert_eq!(
+            PrivateKey::from_bytes(&private_key.keypair.secret.to_bytes())?,
+            private_key
+        );
+        Ok(())
+    }
+    #[test]
+    fn test_to_bytes() -> Result<(), KeyError> {
+        let private_key = PrivateKey::from_str(PRIVATE_KEY_STR)?;
+        assert_eq!(
+            &PrivateKey::to_bytes(&private_key),
+            &private_key.keypair.secret.to_bytes()
+        );
+        Ok(())
+    }
+    #[test]
+    fn test_public_key() -> Result<(), KeyError> {
+        let private_key = PrivateKey::from_str(PRIVATE_KEY_STR)?;
+
+        assert_eq!(
+            PrivateKey::public_key(&private_key),
+            private_key.keypair.public
+        );
+        Ok(())
+    }
+    #[test]
+    fn test_from_str() -> Result<(), KeyError> {
+        let private_key = PrivateKey::from_str(PRIVATE_KEY_STR)?;
+        let key_string = private_key.to_string();
+        assert_eq!(
+            PrivateKey::from_str(&key_string)?.to_string(),
+            private_key.to_string()
+        );
+        Ok(())
+    }
+    #[test]
+    fn test_to_string() -> Result<(), KeyError> {
+        let private_key = PrivateKey::from_str(PRIVATE_KEY_STR)?;
+        let key_string = private_key.to_string();
+        assert_eq!(
+            PrivateKey::from_str(&key_string)?.to_string(),
+            private_key.to_string()
+        );
+        Ok(())
+    }
+    #[test]
+    fn test_sign() -> Result<(), KeyError> {
+        let mut entropy = [0u8; 64];
+        thread_rng().fill(&mut entropy[..]);
+        let key = PrivateKey::from_bytes(&entropy[..32])?;
+        let message: &[u8] = b"This is a test";
+        let signature: Signature = key.keypair.sign(message);
+        let signature_bytes: [u8; SIGNATURE_LENGTH] = signature.to_bytes();
+        assert_eq!(PrivateKey::sign(&key, message), signature_bytes);
+        Ok(())
+    }
+}
