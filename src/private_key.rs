@@ -1,13 +1,13 @@
 use crate::key_error::KeyError;
 use ed25519_dalek::{
-    Keypair, PublicKey, SecretKey, Signature, Signer,
-    SECRET_KEY_LENGTH, SIGNATURE_LENGTH,
+    Keypair, PublicKey, SecretKey, Signature, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH,
 };
+use rand::{thread_rng, Rng};
+use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str;
 use std::str::FromStr;
-use rand::Rng;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
 
@@ -19,12 +19,16 @@ pub struct PrivateKey {
 }
 impl PrivateKey {
     pub fn generate() -> PrivateKey {
-        let random_bytes = rand::thread_rng().gen::<[u8; 64]>();
-        let secret_key =  SecretKey::from_bytes(&random_bytes[..SECRET_KEY_LENGTH]).map_err(KeyError::Signature)?;
+        let mut entropy = [0u8; 64];
+        thread_rng().fill(&mut entropy[..]);
+        let secret_key = SecretKey::from_bytes(&entropy[0..32]).unwrap();
 
         PrivateKey {
-            keypair: Keypair{secret: secret_key, public: (&secret_key).into()},
-            chain_code: Some(random_bytes&[32..]),
+            keypair: Keypair {
+                public: (&secret_key).into(),
+                secret: secret_key,
+            },
+            chain_code: Some(<[u8; 32]>::try_from(&entropy[32..64]).unwrap()),
         }
     }
 
@@ -32,25 +36,35 @@ impl PrivateKey {
         let der_prefix_bytes = hex::decode("302e020100300506032b657004220420").unwrap();
         let private_key = match data.len() {
             32 => {
-                let secret_key =  SecretKey::from_bytes(&data).map_err(KeyError::Signature)?;
+                let secret_key = SecretKey::from_bytes(&data).map_err(KeyError::Signature)?;
                 let private_key = PrivateKey {
-                    keypair: Keypair{secret: secret_key, public: (&secret_key).into()},
+                    keypair: Keypair {
+                        public: (&secret_key).into(),
+                        secret: secret_key,
+                    },
                     chain_code: None,
                 };
                 private_key
             }
             48 if data.starts_with(&der_prefix_bytes) => {
-                let secret_key =  SecretKey::from_bytes(&data[der_prefix_bytes..]).map_err(KeyError::Signature)?;
+                let secret_key = SecretKey::from_bytes(&data[16..]).map_err(KeyError::Signature)?;
                 let private_key = PrivateKey {
-                    keypair: Keypair{secret: secret_key, public: (&secret_key).into()},
+                    keypair: Keypair {
+                        public: (&secret_key).into(),
+                        secret: secret_key,
+                    },
                     chain_code: None,
                 };
                 private_key
             }
             64 => {
-                let secret_key =  SecretKey::from_bytes(&data[..SECRET_KEY_LENGTH]).map_err(KeyError::Signature)?;
+                let secret_key = SecretKey::from_bytes(&data[..SECRET_KEY_LENGTH])
+                    .map_err(KeyError::Signature)?;
                 let private_key = PrivateKey {
-                    keypair: Keypair{secret: secret_key, public: (&secret_key).into()},
+                    keypair: Keypair {
+                        public: (&secret_key).into(),
+                        secret: secret_key,
+                    },
                     chain_code: None,
                 };
                 private_key
@@ -62,29 +76,33 @@ impl PrivateKey {
         Ok(private_key)
     }
     pub fn to_bytes(&self) -> [u8; SECRET_KEY_LENGTH] {
-        self.0.to_bytes()
+        self.keypair.secret.to_bytes()
     }
+
     pub fn sign(&self, message: &[u8]) -> [u8; SIGNATURE_LENGTH] {
-        let message: &[u8] = b"This is a test";
-        let secret_key = SecretKey::from_bytes(&self.0);
-        let keypair = Keypair{secret: secret_key, public: (&secret_key).into()};
-        let signature: Signature = keypair.sign(message);
+        let signature: Signature = self.keypair.sign(message);
         let signature_bytes: [u8; SIGNATURE_LENGTH] = signature.to_bytes();
         signature_bytes
     }
     pub fn public_key(&self) -> PublicKey {
-        (&self.public).into()
+        self.keypair.public
     }
 }
+
 impl PartialEq for PrivateKey {
     fn eq(&self, other: &Self) -> bool {
-        self.0.to_bytes() == other.0.to_bytes()
+        self.keypair.secret.to_bytes() == other.keypair.secret.to_bytes()
     }
 }
 impl Eq for PrivateKey {}
 impl Display for PrivateKey {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}{}", DER_PREFIX, hex::encode(self.0.to_bytes()))
+        write!(
+            f,
+            "{}{}",
+            DER_PREFIX,
+            hex::encode(self.keypair.secret.to_bytes())
+        )
     }
 }
 impl FromStr for PrivateKey {
