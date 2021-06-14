@@ -1,74 +1,83 @@
 use std::str::FromStr;
+use crate::bip39_words::BIP39_WORDS;
+use crate::entropy;
+use crate::legacy_words::LEGACY_WORDS;
+use bip39::{Language, Mnemonic as Bip39Mnemonic};
+use math::round;
 use pad::{Alignment, PadStr};
-use rand;
+use regex::Regex;
 use sha2::{Digest, Sha384};
 use bip39::{Mnemonic, Language};
 use thiserror::Error;
 use rand;
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::str;
+use std::str::FromStr;
 use thiserror::Error;
 
-use crate::legacy_words::LEGACY_WORDS;
-
 #[derive(Debug, Error)]
-pub enum MnemError {
+pub enum MnemonicError {
+    #[error("The mnemonic has an invalid checksum.")]
+    CheckSumMismatch,
+
     #[error("Legacy 22-word mnemonics do not support passphrases")]
     Passphrase,
 
     #[error("Invalid entropy length: {0}. Only 12 and 24 are supported.")]
     Length(usize),
 
+    #[error("Mnemonic contained words that are not in the standard word list")]
+    UnknownWord,
+
     #[error(transparent)]
-    MnemonicError(#[from] bip39::Error),
+    GenerateMnemonic(#[from] bip39::Error),
 }
 
 // Mnemonic phrase struct
 #[derive(Debug)]
-pub struct MnemonicWords {
-    pub props_words: Mnemonic,
-    pub props_legacy: bool,
+pub struct Mnemonic {
+    words: Bip39Mnemonic,
+    legacy: bool,
 }
 
-/// Returns a Mnemonic.
-///
-/// # Arguments
-///
-/// * `length` - usize length of menwmonic word list (Entropy Length). Only
-///              supports lengths of 12 and 24.
-///
-impl MnemonicWords {
-    pub fn generate(length: usize) -> Result<MnemonicWords, MnemError> {
+impl Mnemonic {
+    /// Returns a new random 12 or 24 word mnemonic from the BIP-39
+    /// standard English word list.
+    ///
+    pub fn generate(length: usize) -> Result<Mnemonic, MnemonicError> {
         let mut rng = rand::thread_rng();
 
         let words = match length {
             12 | 24 => {
-                let words = Mnemonic::generate_in_with(&mut rng, Language::English, length)
-                    .map_err(MnemError::MnemonicError)?;
+                let words = Bip39Mnemonic::generate_in_with(&mut rng, Language::English, length)
+                    .map_err(MnemonicError::GenerateMnemonic)?;
                 words
             }
             _ => {
-                return Err(MnemError::Length(length));
+                return Err(MnemonicError::Length(length));
             }
         };
 
-        Ok(MnemonicWords {
-            props_words: words,
-            props_legacy: false,
+        Ok(Mnemonic {
+            words,
+            legacy: false,
         })
     }
 
     /// Returns a new random 12-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_12() -> Result<MnemonicWords, MnemError> {
-        let mnemonic = MnemonicWords::generate(12)?;
+    pub fn generate_12() -> Result<Mnemonic, MnemonicError> {
+        let mnemonic = Mnemonic::generate(12)?;
         Ok(mnemonic)
     }
 
     /// Returns a new random 24-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_24() -> Result<MnemonicWords, MnemError> {
-        let mnemonic = MnemonicWords::generate(24)?;
+    pub fn generate_24() -> Result<Mnemonic, MnemonicError> {
+        let mnemonic = Mnemonic::generate(24)?;
         Ok(mnemonic)
     }
 
@@ -86,16 +95,18 @@ impl MnemonicWords {
     //
     // * `words` - List of strings
     //
-    pub fn from_words(word_list: Mnemonic) -> Result<MnemonicWords, MnemError> {
-        let word_count = word_list.word_count();
+    pub fn from_words(words: Bip39Mnemonic) -> Result<Mnemonic, MnemonicError> {
+        let word_count = words.word_count();
 
-        Ok(MnemonicWords {
-            props_words: word_list,
-            props_legacy: word_count == 22,
-        }) // TODO: Connect to validate()
+        let new_mnemonic = Mnemonic {
+            words,
+            legacy: word_count == 22,
+        };
+        let validated_mnemonic = new_mnemonic.validate()?;
+        Ok(validated_mnemonic)
     }
 
-    // TODO: Need Private Key Library to finish
+    // WIP: Need Private Key Library to finish
 
     /// Recover a private key from this mnemonic phrase, with an optional passphrase.
     ///
@@ -118,57 +129,116 @@ impl MnemonicWords {
     //     return this._to_private_key(passphrase);
     // }
 
-    /// Recover a mnemonic phrase from a string, splitting on spaces.
-    /// Handles 12, 22(Legacy), and 24 words.
-    ///
-    /// Returns Mnemonic.
-    ///
-    /// # Arguments
-    ///
-    /// `mnemonic` - a Mnemonic string.
-    //
-    pub fn from_string(mnemonic: &str) -> Result<MnemonicWords, MnemError> {
-        let mnem = Mnemonic::from_str(mnemonic).unwrap();
-
-        let new_mnem = MnemonicWords::from_words(mnem)?;
-        Ok(MnemonicWords {
-            props_words: new_mnem.props_words,
-            props_legacy: false,
-        })
-    }
-
-    // TODO: Finish Validate
-
     /// Returns a Menmonic
     ///
     /// # Arguments
     ///
-    /// `&self` - Current instance of Mnemonic.
+    /// `self` - Current instance of Mnemonic.
     ///
-    pub fn validate(&self) -> Result<&MnemonicWords, MnemError> {
-        if self.props_legacy {
-            if Mnemonic::word_count(&self.props_words) != 22 {
-                return Err(MnemError::Length(Mnemonic::word_count(&self.props_words)));
+    fn validate(self) -> Result<Self, MnemonicError> {
+        if self.legacy {
+            if Bip39Mnemonic::word_count(&self.words) != 22 {
+                return Err(MnemonicError::Length(Bip39Mnemonic::word_count(
+                    &self.words,
+                )));
             }
 
-            let unknown_word_indices: usize = 0;
-            // TODO: Figure out how to access indeces of prop_words and compare
-            //       with indeces of LEGACY_WORDS to get unknown_word_count
+            let mut unknown_word_indices: usize = 0;
+            let mnemonic_as_string = format!("{}", self.words);
+            let mnem = mnemonic_as_string.split(" ");
+            let word_list = mnem.collect::<Vec<&str>>();
 
-            // for j in 0..LEGACY_WORDS.len() {
-            //     if self.props_words.contains(LEGACY_WORDS[j]) {
-            //         unknown_word_indices += 1;
-            //     }
+            for i in 0..self.words.word_count() {
+                for j in 0..LEGACY_WORDS.len() {
+                    if word_list[i] == LEGACY_WORDS[j] {
+                        unknown_word_indices += 1;
+                    }
+                }
+            }
 
-            // }
+            println!(
+                "This Error was hit. Unknown Indices: {:?}",
+                unknown_word_indices
+            );
+
+            if unknown_word_indices > 0 {
+                return Err(MnemonicError::UnknownWord);
+            }
+
+            let (seed, checksum) = entropy::legacy_1(&self.words);
+            let new_check_sum = entropy::crc_8(&seed);
+
+            if checksum != new_check_sum {
+                return Err(MnemonicError::CheckSumMismatch);
+            }
         } else {
-            if !(self.props_words.word_count() == 12 || self.props_words.word_count() == 24) {
-                return Err(MnemError::Length(Mnemonic::word_count(&self.props_words)));
+            if !(self.words.word_count() == 12 || self.words.word_count() == 24) {
+                return Err(MnemonicError::Length(Bip39Mnemonic::word_count(
+                    &self.words,
+                )));
             }
-            // TODO: a lot
+
+            let word_string = format!("{}", self.words);
+            let word_list = word_string.split(" ").collect::<Vec<&str>>();
+
+            let mut unknown_indices = Vec::new();
+
+            for i in 0..word_list.len() {
+                for j in 0..LEGACY_WORDS.len() {
+                    if word_list[i].to_lowercase() == LEGACY_WORDS[j] {
+                        println!("{}", word_list[i]);
+                        println!("{}", LEGACY_WORDS[j]);
+                        unknown_indices.push(i);
+                    }
+                }
+            }
+
+            println!("This Error was hit. Unknown Indices: {:?}", unknown_indices);
+
+            if unknown_indices.len() > 0 {
+                return Err(MnemonicError::UnknownWord);
+            }
+
+            let mut bits = String::new();
+
+            for i in 0..word_list.len() {
+                for j in 0..BIP39_WORDS.len() {
+                    if word_list[i].to_lowercase() == BIP39_WORDS[j] {
+                        let temp = format!(
+                            "{}{}",
+                            bits,
+                            j.to_string().pad(11, '0', Alignment::Right, true)
+                        );
+                        bits = temp;
+                    }
+                }
+            }
+
+            let divider_index = round::floor(bits.len() as f64 / 33.0, 0) * 32.0;
+
+            let entropy_bits = &bits[divider_index as usize..bits.len()];
+
+            let check_sum_bits = &bits[0..divider_index as usize];
+
+            let re = Regex::new(r"(.{1,8})").unwrap();
+
+            let caps = re.captures(entropy_bits).unwrap();
+
+            let match_regex = caps.get(0).map_or("", |m| m.as_str());
+
+            let entropy_bytes = binary_to_byte(match_regex);
+
+            let new_check_sum = derive_check_sum_bits(entropy_bytes);
+
+            if new_check_sum != check_sum_bits {
+                return Err(MnemonicError::CheckSumMismatch);
+            }
         }
 
-        Ok(self)
+        Ok(Mnemonic {
+            words: self.words,
+            legacy: self.legacy,
+        })
     }
 
     // TODO: Need Private Key Library to finish
@@ -181,7 +251,7 @@ impl MnemonicWords {
     ///
     /// `passphrase` - string
     ///
-    fn _to_private_key() {}
+    fn to_private_key() {}
 
     // TODO: Need Private Key Library to finish
 
@@ -190,8 +260,29 @@ impl MnemonicWords {
     /// # Arguments
     ///
     /// `&self` - Current instance of Mnemonic.
-    ///
+    //
     pub fn to_legacy_private_key(&self) {}
+}
+
+impl FromStr for Mnemonic {
+    type Err = MnemonicError;
+
+    fn from_str(mnemonic: &str) -> Result<Self, MnemonicError> {
+        let mnem = Bip39Mnemonic::from_str(mnemonic).unwrap();
+        let new_mnem = Mnemonic::from_words(mnem)?;
+        let words = new_mnem.words;
+
+        Ok(Mnemonic {
+            words,
+            legacy: false,
+        })
+    }
+}
+
+impl Display for Mnemonic {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.words)
+    }
 }
 
 /// Returns a u8
@@ -200,8 +291,8 @@ impl MnemonicWords {
 ///
 /// `bin` - string
 ///
-pub fn binary_to_byte(bin: &str) -> u16 {
-    let byte: u16 = bin.parse().unwrap();
+pub fn binary_to_byte(bin: &str) -> &[u8] {
+    let byte = bin.as_bytes();
     return byte;
 }
 
@@ -212,7 +303,7 @@ pub fn binary_to_byte(bin: &str) -> u16 {
 /// `bytes` - A list of numners.
 ///
 pub fn bytes_to_binary(bytes: &[u8]) -> String {
-    let mut bytes_to_string: String = "".to_string();
+    let mut bytes_to_string = String::new();
 
     for byte in bytes {
         bytes_to_string = format!(
@@ -225,6 +316,12 @@ pub fn bytes_to_binary(bytes: &[u8]) -> String {
     return bytes_to_string;
 }
 
+/// Returns a string.
+///
+/// # Arguments
+///
+/// `entropy_buffer` - Slice of u8 numbers.
+///
 pub fn derive_check_sum_bits(entropy_buffer: &[u8]) -> String {
     let ent = entropy_buffer.len() * 8;
     let cs = ent / 32;
@@ -241,64 +338,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate() -> Result<(), MnemError> {
-        // Can't really test generate because it'll alwats be random,
-        // but can test props legacy to make sure we get false
+    fn test_generate() -> Result<(), MnemonicError> {
+        let generate_test = Mnemonic::generate(12)?;
 
-        // Maybe there's a way, I dunno
-        let generate_test = MnemonicWords::generate(12)?;
-        // Outputs Menmonic list of words
-        println!("Generate Test: {}", generate_test.props_words);
-
-        assert_ne!(true, generate_test.props_legacy);
+        println!("Generate Test: {}", generate_test.words);
+        assert_eq!(Bip39Mnemonic::word_count(&generate_test.words), 12);
+        assert_ne!(true, generate_test.legacy);
         Ok(())
     }
 
     #[test]
-    fn test_generate_12() -> Result<(), MnemError> {
-        let generate_12 = MnemonicWords::generate_12()?;
+    fn test_generate_12() -> Result<(), MnemonicError> {
+        let generate_12 = Mnemonic::generate_12()?;
 
-        assert_eq!(Mnemonic::word_count(&generate_12.props_words), 12);
-        assert_ne!(true, generate_12.props_legacy);
+        assert_eq!(Bip39Mnemonic::word_count(&generate_12.words), 12);
+        assert_ne!(true, generate_12.legacy);
         Ok(())
     }
 
     #[test]
-    fn test_generate_24() -> Result<(), MnemError> {
-        let generate_24 = MnemonicWords::generate_24()?;
+    fn test_generate_24() -> Result<(), MnemonicError> {
+        let generate_24 = Mnemonic::generate_24()?;
 
-        assert_eq!(Mnemonic::word_count(&generate_24.props_words), 24);
-        assert_ne!(true, generate_24.props_legacy);
+        assert_eq!(Bip39Mnemonic::word_count(&generate_24.words), 24);
+        assert_ne!(true, generate_24.legacy);
         Ok(())
     }
 
-    // TODO: Finish test
+    // TODO: Finish test / How to test this?
     #[test]
-    fn test_from_words() -> Result<(), MnemError> {
-        //let words =
-        &["hidden dry document virtual squeeze grace daring orphan fancy link size remember"];
+    fn test_from_words() -> Result<(), MnemonicError> {
+        let mnem = Mnemonic::generate(12)?;
+        let words_test = Mnemonic::from_words(mnem.words)?;
+        println!("{:?}", words_test);
 
         Ok(())
     }
 
-    // TODO: Finish test
     #[test]
-    fn test_from_string() -> Result<(), MnemError> {
-        let test = "yellow wedding ugly planet awkward trumpet virus spend rather net bamboo burst";
-        println!("{:?}", MnemonicWords::from_string(test));
-        Ok(())
-    }
+    fn test_from_string() -> Result<(), MnemonicError> {
+        let mnem = Mnemonic::generate(12)?;
 
-    // TODO: Finish test
-    #[test]
-    fn test_validate() -> Result<(), MnemError> {
+        // Parse string into list of words
+        let mnem_string = format!("{}", mnem);
+        let mnem = mnem_string.split(" ");
+        let mnem_word_list = mnem.collect::<Vec<&str>>();
+
+        // Should print Mnemonic words
+        println!("{}", mnem_string);
+        // mnem_word_list should be length of 12
+        assert_eq!(mnem_word_list.len(), 12);
         Ok(())
     }
 
     #[test]
     fn test_binary_to_byte() {
         let test_string = "00000005";
-        assert_eq!(binary_to_byte(test_string), 5);
+        assert_eq!(
+            binary_to_byte(test_string),
+            [48, 48, 48, 48, 48, 48, 48, 53]
+        );
     }
 
     #[test]
@@ -317,5 +416,14 @@ mod tests {
             test,
             "00002700000089000000170000017400000150000001470000007000000207".to_string()
         )
+    }
+
+    #[test]
+    fn test_legacy_1() -> Result<(), MnemonicError> {
+        let mnem = Mnemonic::generate(12)?;
+        let (legacy_result, checksum) = entropy::legacy_1(&mnem.words);
+        println!("{:?}", legacy_result);
+        println!("{:?}", checksum);
+        Ok(())
     }
 }
