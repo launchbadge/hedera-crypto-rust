@@ -5,6 +5,7 @@ use rand::Rng;
 use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
 use std::str;
+use serde_json;
 
 // CTR mode implementation is generic over block ciphers
 // we will create a type alias for convenience
@@ -17,15 +18,21 @@ type HmacSha256 = Hmac<Sha256>;
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct KDFParams {
     dk_len: i32,
-    salt: [u8; 32],
+    salt: String,
     c: u32,
     prf: Cow<'static, str>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct cipherparams {
+    iv: String,
+}
+
+
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Crypto {
-    cipher_text: Vec<u8>,
-    cipher_params: [u8; 16],
+    ciphertext: String,
+    cipherparams: cipherparams,
     cipher: Cow<'static, str>,
     kdf: Cow<'static, str>,
     kdf_params: KDFParams,
@@ -41,7 +48,7 @@ pub struct KeyStore {
 // create keystore
 //      returns JSON buffer that is a keystore
 impl KeyStore {
-    pub fn create_keystore(private_key: &[u8], pass: &str) -> KeyStore {
+    pub fn create_keystore(private_key: &[u8], pass: &str) -> String {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let pk_len = private_key.len();
@@ -68,26 +75,30 @@ impl KeyStore {
         let result = mac.finalize();
         let code_bytes = result.into_bytes();
 
+        let iv_encoded = hex::encode(iv);
+
         let keystore = KeyStore {
             version: 1,
             crypto: Crypto {
-                cipher_text: buffer,
-                cipher_params: iv,
+                ciphertext: hex::encode(buffer),
+                cipherparams: cipherparams {
+                    iv : iv_encoded,
+                },
                 cipher: Cow::Borrowed("AES-128-CTR"),
                 kdf: Cow::Borrowed("pbkdf2"),
                 kdf_params: KDFParams {
                     dk_len: 32,
-                    salt,
+                    salt: hex::encode(salt),
                     c: 262144,
                     prf: Cow::Borrowed("hmac-sha256"),
                 },
             },
             mac: (&*code_bytes).to_vec(),
         };
-        keystore
-    }
+        serde_json::to_string(&keystore).unwrap()
+     }
 
-    pub fn load_keystore(keystore: Json<KeyStore>, pass: &str) {
+    pub fn load_keystore(keystore: Json<KeyStore>, _pass: &str) {
         // todo: set up errors
         if keystore.version != 1 {
             panic!("keystore version not supported: {}", keystore.version);
@@ -108,13 +119,13 @@ impl KeyStore {
         }
 
         // todo: derive key
-        let mut derived_key: [u8; 32] = [0; 32];
-        pbkdf2::pbkdf2::<HmacSha256>(
-            pass.as_bytes(),
-            &keystore.crypto.kdf_params.salt,
-            keystore.crypto.kdf_params.c,
-            &mut derived_key,
-        );
+        // let mut derived_key: [u8; 32] = [0; 32];
+        // pbkdf2::pbkdf2::<HmacSha256>(
+        //     pass.as_bytes(),
+        //     &(hex::decode(keystore.crypto.kdf_params.salt).unwrap()),
+        //     keystore.crypto.kdf_params.c,
+        //     &mut derived_key,
+        // );
 
         // todo: verify mac
 
@@ -128,19 +139,23 @@ impl KeyStore {
 mod tests {
     use crate::keystore::KeyStore;
     use actix_web::web::Json;
+    use std::str;
 
     #[test]
     fn create_keystore() {
         let mut private_key = [0u8; 32];
         let hex_string = hex::decode_to_slice("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10", &mut private_key as &mut [u8]);
 
-        let keystore: KeyStore = KeyStore::create_keystore(&private_key, "hello");
+        let keystore: String = KeyStore::create_keystore(&private_key, "hello");
 
-        println!("hello hello hello {:?}", keystore.crypto.kdf_params.salt);
+        println!("{:?}", keystore);
 
-        let serialized_keystore = serde_json::to_string(&keystore).unwrap();
-        println!("{}", serialized_keystore);
+        let answer_keystore = "7b2276657273696f6e223a312c2263727970746f223a7b2263697068657274657874223a2264376462336136353836346538626261376630343734393764343134656662376361666162303763613434666165336138666266306365623433386238646366222c22636970686572706172616d73223a7b226976223a223930373034363435376230313164313838646233616266646536393463316162227d2c22636970686572223a224145532d3132382d435452222c226b6466223a2270626b646632222c226b6466706172616d73223a7b22646b4c656e223a33322c2273616c74223a2261316461633735366333356631643164626132323236636335383937643864636136333861323734326633393861613835623866376566386337396164376136222c2263223a3236323134342c22707266223a22686d61632d736861323536227d2c226d6163223a22393732646630623361636133333461333731663232653233353539616361366536613632313634633461373263353065346162643839666334346263306466633832356663326536636537636263633538313231356232356364333031393630227d7d";
+        let answer_key = hex::decode(answer_keystore).unwrap();
+        println!("{:?}", str::from_utf8(&answer_key).unwrap());
 
-        assert_eq!(keystore.version, 1);
+        let keystore_2: String = KeyStore::create_keystore(&private_key, "hello");
+
+        assert_eq!(keystore_2, "7b2276657273696f6e223a312c2263727970746f223a7b2263697068657274657874223a2264376462336136353836346538626261376630343734393764343134656662376361666162303763613434666165336138666266306365623433386238646366222c22636970686572706172616d73223a7b226976223a223930373034363435376230313164313838646233616266646536393463316162227d2c22636970686572223a224145532d3132382d435452222c226b6466223a2270626b646632222c226b6466706172616d73223a7b22646b4c656e223a33322c2273616c74223a2261316461633735366333356631643164626132323236636335383937643864636136333861323734326633393861613835623866376566386337396164376136222c2263223a3236323134342c22707266223a22686d61632d736861323536227d2c226d6163223a22393732646630623361636133333461333731663232653233353539616361366536613632313634633461373263353065346162643839666334346263306466633832356663326536636537636263633538313231356232356364333031393630227d7d");
     }
 }
