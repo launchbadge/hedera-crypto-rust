@@ -17,6 +17,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct KDFParams {
+    #[serde(rename(serialize = "dkLen", deserialize = "dkLen"))]
     dk_len: i32,
     salt: String,
     c: u32,
@@ -24,7 +25,8 @@ pub struct KDFParams {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct cipherparams {
+#[serde(rename(serialize = "cipherparams", deserialize = "cipherparams"))]
+pub struct CipherParams {
     iv: String,
 }
 
@@ -32,9 +34,11 @@ pub struct cipherparams {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Crypto {
     ciphertext: String,
-    cipherparams: cipherparams,
+    #[serde(rename(serialize = "cipherparams", deserialize = "cipherparams"))]
+    cipher_params: CipherParams,
     cipher: Cow<'static, str>,
     kdf: Cow<'static, str>,
+    #[serde(rename(serialize = "kdfparams", deserialize = "kdfparams"))]
     kdf_params: KDFParams,
 }
 
@@ -42,7 +46,7 @@ pub struct Crypto {
 pub struct KeyStore {
     version: i32,
     crypto: Crypto,
-    mac: Vec<u8>,
+    mac: String,
 }
 
 // create keystore
@@ -81,7 +85,7 @@ impl KeyStore {
             version: 1,
             crypto: Crypto {
                 ciphertext: hex::encode(buffer),
-                cipherparams: cipherparams {
+                cipher_params: CipherParams {
                     iv : iv_encoded,
                 },
                 cipher: Cow::Borrowed("AES-128-CTR"),
@@ -93,7 +97,7 @@ impl KeyStore {
                     prf: Cow::Borrowed("hmac-sha256"),
                 },
             },
-            mac: (&*code_bytes).to_vec(),
+            mac: hex::encode((&*code_bytes).to_vec()),
         };
         serde_json::to_string(&keystore).unwrap()
      }
@@ -148,14 +152,17 @@ mod tests {
 
         let keystore: String = KeyStore::create_keystore(&private_key, "hello");
 
+        println!("My KeyStore: ");
         println!("{:?}", keystore);
 
         let answer_keystore = "7b2276657273696f6e223a312c2263727970746f223a7b2263697068657274657874223a2264376462336136353836346538626261376630343734393764343134656662376361666162303763613434666165336138666266306365623433386238646366222c22636970686572706172616d73223a7b226976223a223930373034363435376230313164313838646233616266646536393463316162227d2c22636970686572223a224145532d3132382d435452222c226b6466223a2270626b646632222c226b6466706172616d73223a7b22646b4c656e223a33322c2273616c74223a2261316461633735366333356631643164626132323236636335383937643864636136333861323734326633393861613835623866376566386337396164376136222c2263223a3236323134342c22707266223a22686d61632d736861323536227d2c226d6163223a22393732646630623361636133333461333731663232653233353539616361366536613632313634633461373263353065346162643839666334346263306466633832356663326536636537636263633538313231356232356364333031393630227d7d";
         let answer_key = hex::decode(answer_keystore).unwrap();
+        println!("JS KeyStore: ");
         println!("{:?}", str::from_utf8(&answer_key).unwrap());
 
         let keystore_2: String = KeyStore::create_keystore(&private_key, "hello");
 
+        println!("Tests: ");
         assert_eq!(keystore_2, "7b2276657273696f6e223a312c2263727970746f223a7b2263697068657274657874223a2264376462336136353836346538626261376630343734393764343134656662376361666162303763613434666165336138666266306365623433386238646366222c22636970686572706172616d73223a7b226976223a223930373034363435376230313164313838646233616266646536393463316162227d2c22636970686572223a224145532d3132382d435452222c226b6466223a2270626b646632222c226b6466706172616d73223a7b22646b4c656e223a33322c2273616c74223a2261316461633735366333356631643164626132323236636335383937643864636136333861323734326633393861613835623866376566386337396164376136222c2263223a3236323134342c22707266223a22686d61632d736861323536227d2c226d6163223a22393732646630623361636133333461333731663232653233353539616361366536613632313634633461373263353065346162643839666334346263306466633832356663326536636537636263633538313231356232356364333031393630227d7d");
     }
 }
