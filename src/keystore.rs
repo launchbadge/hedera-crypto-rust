@@ -1,5 +1,5 @@
 use actix_web::web::Json;
-use ctr::cipher::{NewCipher, StreamCipher};
+use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_json;
@@ -99,44 +99,66 @@ impl KeyStore {
         hex::encode(serde_json::to_string(&keystore).unwrap())
     }
 
-    pub fn load_keystore(keystore: Json<KeyStore>, _pass: &str) {
-        // let keystore_decode = hex::decode(&keystore).unwrap();
-        //
-        // let keystore_serde = serde_json::from_str(&keystore_decode).unwrap();
+    pub fn load_keystore(keystore: String, pass: &str) {
+        let keystore_decode = hex::decode(&keystore).unwrap();
+        let keystore_str = str::from_utf8(&keystore_decode).unwrap();
+
+        let keystore_serde: KeyStore = serde_json::from_str(&keystore_str).unwrap();
 
         // todo: set up errors
-        if keystore.version != 1 {
-            panic!("keystore version not supported: {}", keystore.version);
+        if keystore_serde.version != 1 {
+            panic!("keystore version not supported: {}", keystore_serde.version);
         }
 
-        if keystore.crypto.kdf != *"pbkdf2".to_string() {
+        if keystore_serde.crypto.kdf != *"pbkdf2".to_string() {
             panic!(
                 "unsupported key derivation function: {}",
-                keystore.crypto.kdf
+                keystore_serde.crypto.kdf
             );
         }
 
-        if keystore.crypto.kdf_params.prf != *"hmac-sha256" {
+        if keystore_serde.crypto.kdf_params.prf != *"hmac-sha256" {
             panic!(
                 "unsupported key derivation hash function: {}",
-                keystore.crypto.kdf_params.prf
+                keystore_serde.crypto.kdf_params.prf
             );
         }
 
-        // todo: derive key
-        // let mut derived_key: [u8; 32] = [0; 32];
-        // pbkdf2::pbkdf2::<HmacSha256>(
-        //     pass.as_bytes(),
-        //     &(hex::decode(keystore.crypto.kdf_params.salt).unwrap()),
-        //     keystore.crypto.kdf_params.c,
-        //     &mut derived_key,
-        // );
+        // derive key
+        let mut derived_key: [u8; 32] = [0; 32];
+        pbkdf2::pbkdf2::<HmacSha256>(
+            pass.as_bytes(),
+            &(hex::decode(keystore_serde.crypto.kdf_params.salt).unwrap()),
+            keystore_serde.crypto.kdf_params.c,
+            &mut derived_key,
+        );
 
-        // todo: verify mac
+        // verify mac
+        let mut key_buffer = hex::decode(&keystore_serde.crypto.ciphertext).unwrap();
+
+        let mut mac = HmacSha384::new_from_slice(&derived_key[16..derived_key.len()])
+            .expect("HMAC can take key of any size");
+        mac.update(&key_buffer);
+
+        let mac_decode = hex::decode(keystore_serde.crypto.mac).unwrap();
+
+        // compare two vectors to verify hmac:
+        match mac.verify(&mac_decode) {
+            Err(MacError) => panic!("HMAC mismatch; passphrase is incorrect",),
+            _ => (),
+        }
 
         // todo: decipher iv
+        let iv_decode = hex::decode(keystore_serde.crypto.cipher_params.iv).unwrap();
+
+        // decrypt the cipher
+        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv_decode).unwrap();
+        cipher.seek(0);
+        cipher.apply_keystream(&mut key_buffer);
 
         // todo: return keypair based on deciphered iv
+        
+
     }
 }
 
@@ -171,6 +193,4 @@ mod tests {
         println!("Tests: ");
         assert_eq!("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10", "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10");
     }
-
-
 }
