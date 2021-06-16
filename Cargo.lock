@@ -558,6 +558,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519-compact"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf396058cc7285b342f9a10ed7a377f088942396c46c4c9a7eb4f0782cb1171"
+dependencies = [
+ "getrandom 0.2.3",
+]
+
+[[package]]
 name = "ed25519-dalek"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -807,10 +816,12 @@ dependencies = [
  "actix-web",
  "aes",
  "ctr",
+ "ed25519-compact",
  "ed25519-dalek",
  "hex",
  "hmac",
  "json",
+ "nacl",
  "pbkdf2",
  "rand 0.8.3",
  "serde",
@@ -1072,6 +1083,12 @@ dependencies = [
  "winapi 0.2.8",
  "ws2_32-sys",
 ]
+
+[[package]]
+name = "nacl"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1610859c3f935c902fae2bd5eb75aa3b751d51907ae7c435b8ba559e295c5d89"
 
 [[package]]
 name = "net2"
