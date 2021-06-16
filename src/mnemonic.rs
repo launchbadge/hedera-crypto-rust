@@ -1,15 +1,16 @@
-use std::str::FromStr;
 use crate::bip39_words::BIP39_WORDS;
 use crate::entropy;
+use crate::key_error::KeyError;
 use crate::legacy_words::LEGACY_WORDS;
+use crate::private_key;
+
 use bip39::{Language, Mnemonic as Bip39Mnemonic};
 use math::round;
 use pad::{Alignment, PadStr};
+use private_key::PrivateKey;
+use rand::thread_rng;
 use regex::Regex;
 use sha2::{Digest, Sha384};
-use bip39::{Mnemonic, Language};
-use thiserror::Error;
-use rand;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str;
@@ -46,7 +47,7 @@ impl Mnemonic {
     /// standard English word list.
     ///
     pub fn generate(length: usize) -> Result<Mnemonic, MnemonicError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
 
         let words = match length {
             12 | 24 => {
@@ -118,16 +119,19 @@ impl Mnemonic {
     ///
     /// `passphrase` - a string
     ///
-    // pub fn to_private_key(&self, passphrase: &str) -> Result<PrivateKey, MmenError>{
-    //     if self.props_legacy {
-    //         if passphrase.len() > 0 {
-    //             return Err(MnemError::Passphrase);
-    //         }
-    //         return self.to_legacy_private_key();
-    //     }
-    //     // Private to_private_key() function
-    //     return this._to_private_key(passphrase);
-    // }
+    pub fn to_private_key(&self, passphrase: &str) -> Result<(), MnemonicError> {
+        if self.legacy {
+            if passphrase.len() > 0 {
+                return Err(MnemonicError::Length(passphrase.len()));
+            }
+            //return self.to_legacy_private_key();
+        }
+        // Private to_private_key() function
+        // return self._to_private_key(passphrase);
+
+        //Ok(PrivateKey{})
+        Ok(())
+    }
 
     /// Returns a Menmonic
     ///
@@ -155,11 +159,6 @@ impl Mnemonic {
                     }
                 }
             }
-
-            println!(
-                "This Error was hit. Unknown Indices: {:?}",
-                unknown_word_indices
-            );
 
             if unknown_word_indices > 0 {
                 return Err(MnemonicError::UnknownWord);
@@ -192,8 +191,6 @@ impl Mnemonic {
                     }
                 }
             }
-
-            println!("This Error was hit. Unknown Indices: {:?}", unknown_indices);
 
             if unknown_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
@@ -242,6 +239,8 @@ impl Mnemonic {
     }
 
     // TODO: Need Private Key Library to finish
+    // Note: needed different naming; received duplication error
+    //       from previous to_private_key_function()
 
     /// Private function
     ///
@@ -251,9 +250,16 @@ impl Mnemonic {
     ///
     /// `passphrase` - string
     ///
-    fn to_private_key() {}
+    fn passphrase_to_private_key(&self, passphrase: &str) -> Result<(), MnemonicError> {
+        let input = format!("{}", self.words);
+        let salt = format!("mnemonic{}", passphrase);
 
-    // TODO: Need Private Key Library to finish
+        //let seed;
+
+        Ok(())
+    }
+
+    // TODO: Finish deriving/returning new private key.
 
     /// Returns a Private Key.
     ///
@@ -261,7 +267,31 @@ impl Mnemonic {
     ///
     /// `&self` - Current instance of Mnemonic.
     //
-    pub fn to_legacy_private_key(&self) {}
+    pub fn to_legacy_private_key(&self) -> Result<(), KeyError> {
+
+        let index = if self.legacy { -1 } else { 0 };
+
+        let mut seed: Vec<u8> = if self.legacy {
+            let result = entropy::legacy_1(&self.words).0;
+            result
+        } else {
+            // TODO: Change out this unwrap(). Not sure how
+            let result = entropy::legacy_2(&self.words).unwrap();
+            result
+        };
+
+        // TODO: Finish this
+        
+        // Needs derive key?
+        // let key_data = ;
+
+        // Ok(PrivateKey {
+        //     keypair: self.keypair,
+        //     chain_code: self.chain_code,
+        // })
+
+        Ok(())
+    }
 }
 
 impl FromStr for Mnemonic {
@@ -365,16 +395,6 @@ mod tests {
         Ok(())
     }
 
-    // TODO: Finish test / How to test this?
-    #[test]
-    fn test_from_words() -> Result<(), MnemonicError> {
-        let mnem = Mnemonic::generate(12)?;
-        let words_test = Mnemonic::from_words(mnem.words)?;
-        println!("{:?}", words_test);
-
-        Ok(())
-    }
-
     #[test]
     fn test_from_string() -> Result<(), MnemonicError> {
         let mnem = Mnemonic::generate(12)?;
@@ -418,12 +438,33 @@ mod tests {
         )
     }
 
+    // TODO: Finish test / How to test this?
     #[test]
-    fn test_legacy_1() -> Result<(), MnemonicError> {
+    fn test_from_words() -> Result<(), MnemonicError> {
         let mnem = Mnemonic::generate(12)?;
-        let (legacy_result, checksum) = entropy::legacy_1(&mnem.words);
-        println!("{:?}", legacy_result);
-        println!("{:?}", checksum);
+        let words_test = Mnemonic::from_words(mnem.words)?;
+        println!("{:?}", words_test);
+
+        Ok(())
+    }
+
+    // TODO: Finish Test
+    #[test]
+    fn test_passphrase_to_private_key() -> Result<(), MnemonicError> {
+        let mnem = Mnemonic::generate(12)?;
+        println!("{:?}", Mnemonic::passphrase_to_private_key(&mnem, ""));
+        Ok(())
+    }
+
+    // TODO: Write test for to_legacy_private_key()
+    #[test]
+    fn test_to_legacy_private_key() -> Result<(), KeyError> {
+        Ok(())
+    }
+
+    // TODO: Write test for to_private_key()
+    #[test]
+    fn test_to_private_key() -> Result<(), MnemonicError> {
         Ok(())
     }
 }
