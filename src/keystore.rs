@@ -5,6 +5,7 @@ use serde_json;
 use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
 use std::str;
+use serde_repr::{Serialize_repr, Deserialize_repr};
 
 // CTR mode implementation is generic over block ciphers
 // we will create a type alias for convenience
@@ -38,7 +39,7 @@ struct Crypto {
     cipher_params: CipherParams,
 
     cipher: Cow<'static, str>,
-    kdf: Cow<'static, str>,
+    kdf: KeystoreKdf,
 
     #[serde(rename(serialize = "kdfparams", deserialize = "kdfparams"))]
     kdf_params: KDFParams,
@@ -46,9 +47,22 @@ struct Crypto {
     mac: String,
 }
 
+#[derive(Serialize_repr, Deserialize_repr, PartialEq, Debug)]
+#[repr(u8)]
+enum KeystoreVersion {
+    V1 = 1,
+    V2 = 2,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+enum KeystoreKdf {
+    #[serde(rename = "pbkdf2")]
+    Pbkdf2,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct KeyStore {
-    version: i32,
+    version: KeystoreVersion,
     crypto: Crypto,
 }
 
@@ -85,12 +99,12 @@ impl KeyStore {
         let iv_encoded = hex::encode(iv);
 
         let keystore = KeyStore {
-            version: 1,
+            version: KeystoreVersion::V1,
             crypto: Crypto {
                 ciphertext: hex::encode(buffer),
                 cipher_params: CipherParams { iv: iv_encoded },
                 cipher: Cow::Borrowed("AES-128-CTR"),
-                kdf: Cow::Borrowed("pbkdf2"),
+                kdf: KeystoreKdf::Pbkdf2,
                 kdf_params: KDFParams {
                     dk_len: 32,
                     salt: hex::encode(salt),
@@ -110,15 +124,14 @@ impl KeyStore {
         let keystore_serde: KeyStore = serde_json::from_str(&keystore_str).unwrap();
 
         // todo: set up errors
-        if keystore_serde.version != 1 {
-            panic!("keystore version not supported: {}", keystore_serde.version);
+        match keystore_serde.version {
+            KeystoreVersion::V1 => (),
+            KeystoreVersion::V2 => panic!("keystore version not supported: V2"),
         }
 
-        if keystore_serde.crypto.kdf != *"pbkdf2".to_string() {
-            panic!(
-                "unsupported key derivation function: {}",
-                keystore_serde.crypto.kdf
-            );
+        match keystore_serde.crypto.kdf {
+            KeystoreKdf::Pbkdf2 => (),
+            _ => panic!("unsupported key derivation function"),
         }
 
         if keystore_serde.crypto.kdf_params.prf != *"hmac-sha256" {
@@ -147,8 +160,9 @@ impl KeyStore {
         let mac_decode = hex::decode(keystore_serde.crypto.mac).unwrap();
 
         // compare two vectors to verify hmac:
+        // does this statement already check for the mac error?
         match mac.verify(&mac_decode) {
-            Err(h_mac) => panic!("HMAC mismatch; passphrase is incorrect",),
+            Err(MacError) => panic!("HMAC mismatch; passphrase is incorrect",),
             _ => (),
         }
 
@@ -168,13 +182,14 @@ impl KeyStore {
 #[cfg(test)]
 mod tests {
     use crate::keystore::KeyStore;
+    use std::str;
 
     #[test]
     fn create_keystore() {
         let hex_string = hex::decode("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").unwrap();
 
-        let _keystore: String = KeyStore::create_keystore(&hex_string, "hello");
-
+        let keystore: String = KeyStore::create_keystore(&hex_string, "hello");
+        
         println!("Test create keystore: ");
         assert_eq!("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10", "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10");
     }
