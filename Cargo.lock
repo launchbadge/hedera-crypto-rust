@@ -157,10 +157,8 @@ dependencies = [
 name = "hedera_crypto"
 version = "0.0.0"
 dependencies = [
- "actix-web",
  "aes",
  "ctr",
- "ed25519-compact",
  "ed25519-dalek",
  "hex",
  "hmac",
