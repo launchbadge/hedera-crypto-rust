@@ -2,9 +2,9 @@ use crate::bip39_words::BIP39_WORDS;
 use crate::legacy_words::LEGACY_WORDS;
 use bip39::Mnemonic as Bip39Mnemonic;
 use num_bigint::BigInt;
+use rand::AsByteSliceMut;
 use sha2::Digest;
 use sha2::Sha384;
-use rand::AsByteSliceMut;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::str::FromStr;
@@ -136,7 +136,6 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
     }
 
     for (word_index, word) in &word_entries {
-
         let index = BIP39_WORDS
             .iter()
             .position(|&index| index == word.to_lowercase())
@@ -161,12 +160,12 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
 
     let check_sum_bits_len = concat_bits_len as u8 / 33;
     let entropy_bits_len = concat_bits_len as u8 - check_sum_bits_len;
-    let mut entropy = vec![0;  entropy_bits_len as usize / 8];
+    let mut entropy = vec![0; entropy_bits_len as usize / 8];
 
     for i in 0..entropy.len() {
         for j in 0..8 {
             if concat_bits[i * 8 + j] {
-                entropy[i] |= 1 << (7-j);
+                entropy[i] |= 1 << (7 - j);
             }
         }
     }
@@ -174,8 +173,7 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
     let hash = Sha384::digest(&entropy);
     let hash_bits = bytes_to_bits(&hash);
 
-    for i  in 0..check_sum_bits_len as usize {
-
+    for i in 0..check_sum_bits_len as usize {
         if concat_bits[entropy_bits_len as usize + i] != hash_bits[i] {
             return Err(EntropyError::ChecksumMismatch);
         }

@@ -1,9 +1,9 @@
 use crate::bip39_words::BIP39_WORDS;
+use crate::derive;
 use crate::entropy;
 use crate::key_error::KeyError;
 use crate::legacy_words::LEGACY_WORDS;
 use crate::private_key;
-
 use bip39::{Language, Mnemonic as Bip39Mnemonic};
 use math::round;
 use pad::{Alignment, PadStr};
@@ -107,7 +107,7 @@ impl Mnemonic {
         Ok(validated_mnemonic)
     }
 
-    // WIP: Need Private Key Library to finish
+    // WIP: Need Private Key Library to finish/ Switch out unwraps()
 
     /// Recover a private key from this mnemonic phrase, with an optional passphrase.
     ///
@@ -119,18 +119,17 @@ impl Mnemonic {
     ///
     /// `passphrase` - a string
     ///
-    pub fn to_private_key(&self, passphrase: &str) -> Result<(), MnemonicError> {
+    pub fn to_private_key(&self, passphrase: &str) -> Result<PrivateKey, MnemonicError> {
         if self.legacy {
             if passphrase.len() > 0 {
                 return Err(MnemonicError::Length(passphrase.len()));
             }
-            //return self.to_legacy_private_key();
+            return Ok(self.to_legacy_private_key().unwrap());
         }
-        // Private to_private_key() function
-        // return self._to_private_key(passphrase);
 
-        //Ok(PrivateKey{})
-        Ok(())
+        // Private to_private_key() function
+        // Paceholder Private Key
+        Ok(self.passphrase_to_private_key(passphrase).unwrap())
     }
 
     /// Returns a Menmonic
@@ -238,7 +237,7 @@ impl Mnemonic {
         })
     }
 
-    // TODO: Need Private Key Library to finish
+    // WIP: Need Private Key Library to finish
     // Note: needed different naming; received duplication error
     //       from previous to_private_key_function()
 
@@ -250,28 +249,30 @@ impl Mnemonic {
     ///
     /// `passphrase` - string
     ///
-    fn passphrase_to_private_key(&self, passphrase: &str) -> Result<(), MnemonicError> {
+    fn passphrase_to_private_key(&self, passphrase: &str) -> Result<PrivateKey, MnemonicError> {
         let input = format!("{}", self.words);
         let salt = format!("mnemonic{}", passphrase);
 
-        //let seed;
+        // let seed;
 
-        Ok(())
+        // Placeholder Private Key
+        let private_key = PrivateKey::generate();
+        Ok(private_key)
     }
 
-    // TODO: Finish deriving/returning new private key.
-
+    // WIP: Finish deriving/returning new private key.
+    //      *note - Needs private key function derive to finish
+    
     /// Returns a Private Key.
     ///
     /// # Arguments
     ///
     /// `&self` - Current instance of Mnemonic.
     //
-    pub fn to_legacy_private_key(&self) -> Result<(), KeyError> {
+    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, KeyError> {
+        let index: i32 = if self.legacy { -1 } else { 0 };
 
-        let index = if self.legacy { -1 } else { 0 };
-
-        let mut seed: Vec<u8> = if self.legacy {
+        let seed: Vec<u8> = if self.legacy {
             let result = entropy::legacy_1(&self.words).0;
             result
         } else {
@@ -280,17 +281,12 @@ impl Mnemonic {
             result
         };
 
-        // TODO: Finish this
-        
-        // Needs derive key?
-        // let key_data = ;
+        // TODO: Finish legacy function in derive.rs
+        let key_data = derive::legacy(&seed);
 
-        // Ok(PrivateKey {
-        //     keypair: self.keypair,
-        //     chain_code: self.chain_code,
-        // })
+        let private_key = PrivateKey::from_bytes(&key_data)?;
 
-        Ok(())
+        Ok(private_key)
     }
 }
 
@@ -438,7 +434,7 @@ mod tests {
         )
     }
 
-    // TODO: Finish test / How to test this?
+    // WIP: How to test this?
     #[test]
     fn test_from_words() -> Result<(), MnemonicError> {
         let mnem = Mnemonic::generate(12)?;
@@ -448,7 +444,7 @@ mod tests {
         Ok(())
     }
 
-    // TODO: Finish Test
+    // WIP: Finish Test
     #[test]
     fn test_passphrase_to_private_key() -> Result<(), MnemonicError> {
         let mnem = Mnemonic::generate(12)?;
@@ -456,9 +452,12 @@ mod tests {
         Ok(())
     }
 
-    // TODO: Write test for to_legacy_private_key()
+    // WIP: Write test for to_legacy_private_key()
     #[test]
     fn test_to_legacy_private_key() -> Result<(), KeyError> {
+        let mnem = Mnemonic::generate_12().unwrap();
+        let mnem_to_private_key = Mnemonic::to_legacy_private_key(&mnem)?;
+        println!("{:?}", mnem_to_private_key);
         Ok(())
     }
 
