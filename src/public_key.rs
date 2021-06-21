@@ -24,6 +24,11 @@ impl Hash for PublicKey {
     }
 }
 
+// todo: impliment this trait
+// impl Into<Key> for PublicKey {
+//
+// }
+
 impl PublicKey {
     /// Returns a public key.
     ///

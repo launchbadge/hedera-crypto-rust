@@ -1,20 +1,55 @@
 use crate::key::Key;
+use std::fmt;
+use std::ops::Deref;
 
 pub struct KeyList {
-    keys: Vec<Key>,
-    threshold: Result<i32, E>,
+    pub keys: Vec<Key>,
+    pub threshold: Option<usize>,
+}
+
+impl Into<Key> for KeyList {
+    fn into(self) -> Key {
+        Key::KeyList(Self.keys)
+    }
+}
+
+impl From<Vec<Key>> for KeyList {
+    fn from(keys: Vec<Key>) -> Self {
+        KeyList {
+            keys,
+            threshold: None,
+        }
+    }
+}
+
+impl fmt::Display for KeyList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!("keys: {} \nthreshold: {}", self.keys, self.threshold)
+    }
+}
+
+// todo: impliment deref
+// deref into a slice of keys
+impl Deref for KeyList {
+    type Target = [Key];
+    fn deref(&self) -> &Self::Target {
+        &self.keys
+    }
 }
 
 impl KeyList {
-    // todo: of(keys: Vec<Key>) -> KeyList
-    pub fn create_key_list(keys: Vec<Key>, threshold: Result<i32, E>) -> KeyList {
+    pub fn create_key_list(keys: Vec<Key>, threshold: Option<usize>) -> KeyList {
         KeyList{
             keys,
             threshold: threshold,
         }
     }
 
-    // todo: from(keys: Vec<Key>, mapFn: ?, T) -> KeyList
+    pub fn set_threshold(&mut self, threshold: usize) -> &mut Self {
+        self.threshold = Some(threshold);
+    }
 
-    // todo: push(keys: Vec<Key>) -> i32
+    pub fn push(&mut self, key: Key)  {
+        self.keys.push(key);
+    }
 }
