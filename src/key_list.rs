@@ -9,7 +9,7 @@ pub struct KeyList {
 
 impl Into<Key> for KeyList {
     fn into(self) -> Key {
-        Key::KeyList(Self.keys)
+        Key::KeyList(Self)
     }
 }
 
@@ -24,7 +24,7 @@ impl From<Vec<Key>> for KeyList {
 
 impl fmt::Display for KeyList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!("keys: {} \nthreshold: {}", self.keys, self.threshold)
+        println!("keys: {:?} threshold: {}", self.keys, self.threshold.unwrap())
     }
 }
 
@@ -41,7 +41,7 @@ impl KeyList {
     pub fn create_key_list(keys: Vec<Key>, threshold: Option<usize>) -> KeyList {
         KeyList{
             keys,
-            threshold: threshold,
+            threshold,
         }
     }
 
@@ -51,5 +51,20 @@ impl KeyList {
 
     pub fn push(&mut self, key: Key)  {
         self.keys.push(key);
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::{KeyError, PublicKey};
+    use key_list;
+
+    #[test]
+    fn create_key_list_fn () {
+        let public_key_1 = gen_public_key().unwrap();
+        let public_key_2 = gen_public_key().unwrap();
+
+        key_list = create_key_list(vec!(public_key_1, public_key_2), 3);
     }
 }
