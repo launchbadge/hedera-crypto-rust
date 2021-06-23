@@ -293,7 +293,7 @@ impl Mnemonic {
     /// `&self` - Current instance of Mnemonic.
     //
     pub fn to_legacy_private_key(&self) -> Result<PrivateKey, KeyError> {
-        //let index: i32 = if self.legacy { -1 } else { 0 };
+        let index: i32 = if self.legacy { -1 } else { 0 };
 
         let seed: Vec<u8> = if self.legacy {
             let result = entropy::legacy_1(&self.words).0;
@@ -305,7 +305,7 @@ impl Mnemonic {
         };
 
         // TODO: Finish legacy function in derive.rs
-        let key_data = derive::legacy(&seed);
+        let key_data = derive::legacy(&seed, index);
 
         let private_key = PrivateKey::from_bytes(&key_data)?;
 

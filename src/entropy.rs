@@ -1,13 +1,11 @@
 use crate::bip39_words::BIP39_WORDS;
 use crate::legacy_words::LEGACY_WORDS;
 use bip39::Mnemonic as Bip39Mnemonic;
-use num_bigint::BigInt;
+use num_bigint::ToBigInt;
 use rand::AsByteSliceMut;
 use sha2::Digest;
 use sha2::Sha384;
 use std::collections::HashMap;
-use std::convert::TryInto;
-use std::str::FromStr;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -21,45 +19,28 @@ pub enum EntropyError {
 
 // UTIL FUNCTIONS
 
-/// Returns a Vec<u8> and a u8
+/// Returns a result as a Vec<u8>, and a u8 checksum
 ///
 /// # Arguments
 ///
 /// `words` - List of Mnemonic words.
 ///
 pub fn legacy_1(words: &Bip39Mnemonic) -> (Vec<u8>, u8) {
-    let word_string = format!("{}", words);
-    let word_list = word_string.split(" ").collect::<Vec<&str>>();
+    let mut indices = words
+        .word_iter()
+        .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
+        .collect::<Vec<usize>>();
 
-    let mut indices = Vec::new();
-
-    for i in 0..words.word_count() {
-        for j in 0..LEGACY_WORDS.len() {
-            if word_list[i].to_lowercase() == LEGACY_WORDS[j] {
-                indices.push(i);
-            }
-        }
-    }
-
-    let legacy_length: u16 = LEGACY_WORDS.len().try_into().unwrap();
+    let legacy_length = LEGACY_WORDS.len() as u16;
 
     let data = convert_radix(indices.as_byte_slice_mut(), legacy_length, 256);
-    let data_length = data.len();
 
-    let checksum = data[data_length - 1];
-    let mut result: Vec<u8> = Vec::new();
+    let checksum = data[data.len() - 1];
 
-    let mut i = 0;
-
-    while i < data_length - 1 {
-        result.push(data[i] ^ checksum);
-
-        i += 1;
-
-        if i >= data_length - 1 {
-            break;
-        }
-    }
+    let result = data[0..data.len() - 1]
+        .iter()
+        .map(|data| (data ^ checksum) as u8)
+        .collect::<Vec<u8>>();
 
     return (result, checksum);
 }
@@ -75,29 +56,19 @@ pub fn legacy_1(words: &Bip39Mnemonic) -> (Vec<u8>, u8) {
 /// `to_radix` - u16 number.
 ///
 pub fn convert_radix(nums: &[u8], from_radix: u16, to_radix: u16) -> Vec<u8> {
-    let mut num = BigInt::from_str("0").unwrap();
+    let mut num = 0.to_bigint().unwrap();
 
     for i in nums {
         num = num * from_radix;
         num = num + i;
     }
 
-    let mut result = Vec::new();
+    let to_length = 32;
 
-    let mut i = 32;
-
-    while i >= 0 {
-        let tem = &num / to_radix;
-        let rem = num % to_radix;
-        num = tem;
-        result.push(rem.to_string().parse::<u8>().unwrap());
-
-        i -= 1;
-
-        if i < 0 {
-            break;
-        }
-    }
+    let result = (0..to_length).iter().rev().map(|value| {
+        num = &num / to_radix;
+        num % to_radix;
+    }).rev().collect::<Vec<u8>>();
     return result;
 }
 

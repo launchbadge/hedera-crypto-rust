@@ -1,13 +1,8 @@
-use hex::encode;
 use hmac::Hmac;
 use pbkdf2;
-use pbkdf2::password_hash::SaltString;
-use rand_core::OsRng;
-use sha2::Sha384;
+use sha2::Sha512;
 
-type HmacSha384 = Hmac<Sha384>;
-
-// WIP
+type HmacSha512 = Hmac<Sha512>;
 
 /// Returns u8 Vector
 ///
@@ -15,21 +10,16 @@ type HmacSha384 = Hmac<Sha384>;
 ///
 /// `seed` - u8 vector
 ///
-/// `index` - u8
+/// `index` - i32 integer
 ///
-pub fn legacy(seed: &[u8]) -> Vec<u8> {
-    let password = seed.to_vec();
+pub fn legacy(seed: &[u8], index: i32) -> Vec<u8> {
+    let salt = [0xff];
+    let mut buf = Vec::with_capacity(seed.len() + 8);
+    buf.extend_from_slice(&seed);
+    buf.extend_from_slice(&index.to_be_bytes());
 
-    let salt = SaltString::generate(&mut OsRng);
-
-    let password_string = encode(password);
     let mut derived_key: [u8; 32] = [0; 32];
-    pbkdf2::pbkdf2::<HmacSha384>(
-        password_string.as_bytes(),
-        salt.as_bytes(),
-        2048,
-        &mut derived_key,
-    );
+    pbkdf2::pbkdf2::<HmacSha512>(&buf, &salt, 2048, &mut derived_key);
     return derived_key.to_vec();
 }
 
@@ -37,13 +27,20 @@ pub fn legacy(seed: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
 
+    const TEST_SEED: &[u8] = &[
+        157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068, 073,
+        197, 105, 123, 050, 105, 025, 112, 059, 172, 003, 028, 174, 127, 096,
+    ];
+
     #[test]
     fn test_legacy() {
-        let test: &[u8] = &[
-            157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068,
-            073, 197, 105, 123, 050, 105, 025, 112, 059, 172, 003, 028, 174, 127, 096,
-        ];
-        let legacy = legacy(test);
-        println!("{:?}", legacy);
+        let legacy = legacy(TEST_SEED, 0);
+        assert_eq!(
+            legacy,
+            [
+                60, 129, 234, 118, 66, 190, 0, 29, 70, 223, 185, 180, 215, 16, 148, 77, 104, 37,
+                174, 169, 101, 52, 64, 84, 119, 252, 186, 208, 89, 214, 35, 172
+            ]
+        );
     }
 }
