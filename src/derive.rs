@@ -1,11 +1,11 @@
 use hex::encode;
 use hmac::Hmac;
-use pbkdf2::password_hash::SaltString;
 use pbkdf2;
+use pbkdf2::password_hash::SaltString;
 use rand_core::OsRng;
-use sha2::Sha256;
+use sha2::Sha384;
 
-type HmacSha256 = Hmac<Sha256>;
+type HmacSha384 = Hmac<Sha384>;
 
 // WIP
 
@@ -24,7 +24,7 @@ pub fn legacy(seed: &[u8]) -> Vec<u8> {
 
     let password_string = encode(password);
     let mut derived_key: [u8; 32] = [0; 32];
-    pbkdf2::pbkdf2::<HmacSha256>(
+    pbkdf2::pbkdf2::<HmacSha384>(
         password_string.as_bytes(),
         salt.as_bytes(),
         2048,

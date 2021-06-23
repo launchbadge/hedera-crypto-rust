@@ -5,6 +5,7 @@ use crate::key_error::KeyError;
 use crate::legacy_words::LEGACY_WORDS;
 use crate::private_key;
 use bip39::{Language, Mnemonic as Bip39Mnemonic};
+use hmac::Hmac;
 use math::round;
 use pad::{Alignment, PadStr};
 use private_key::PrivateKey;
@@ -16,6 +17,8 @@ use std::fmt::{Display, Formatter};
 use std::str;
 use std::str::FromStr;
 use thiserror::Error;
+
+type HmacSha384 = Hmac<Sha384>;
 
 #[derive(Debug, Error)]
 pub enum MnemonicError {
@@ -36,7 +39,7 @@ pub enum MnemonicError {
 }
 
 // Mnemonic phrase struct
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Mnemonic {
     words: Bip39Mnemonic,
     legacy: bool,
@@ -124,11 +127,12 @@ impl Mnemonic {
             if passphrase.len() > 0 {
                 return Err(MnemonicError::Length(passphrase.len()));
             }
+            // TODO: replace .unwrap()
             return Ok(self.to_legacy_private_key().unwrap());
         }
-
         // Private to_private_key() function
         // Paceholder Private Key
+        // TODO: replace .unwrap()
         Ok(self.passphrase_to_private_key(passphrase).unwrap())
     }
 
@@ -146,20 +150,18 @@ impl Mnemonic {
                 )));
             }
 
-            let mut unknown_word_indices: usize = 0;
             let mnemonic_as_string = format!("{}", self.words);
             let mnem = mnemonic_as_string.split(" ");
             let word_list = mnem.collect::<Vec<&str>>();
 
-            for i in 0..self.words.word_count() {
-                for j in 0..LEGACY_WORDS.len() {
-                    if word_list[i] == LEGACY_WORDS[j] {
-                        unknown_word_indices += 1;
-                    }
+            let mut unknown_word_indices = Vec::new();
+            for word in word_list.iter() {
+                if LEGACY_WORDS.contains(word) {
+                    unknown_word_indices.push(word);
                 }
             }
 
-            if unknown_word_indices > 0 {
+            if unknown_word_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
             }
 
@@ -179,19 +181,14 @@ impl Mnemonic {
             let word_string = format!("{}", self.words);
             let word_list = word_string.split(" ").collect::<Vec<&str>>();
 
-            let mut unknown_indices = Vec::new();
-
-            for i in 0..word_list.len() {
-                for j in 0..LEGACY_WORDS.len() {
-                    if word_list[i].to_lowercase() == LEGACY_WORDS[j] {
-                        println!("{}", word_list[i]);
-                        println!("{}", LEGACY_WORDS[j]);
-                        unknown_indices.push(i);
-                    }
+            let mut unknown_word_indices = Vec::new();
+            for word in word_list.iter() {
+                if BIP39_WORDS.contains(word) {
+                    unknown_word_indices.push(word);
                 }
             }
 
-            if unknown_indices.len() > 0 {
+            if unknown_word_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
             }
 
@@ -211,19 +208,16 @@ impl Mnemonic {
             }
 
             let divider_index = round::floor(bits.len() as f64 / 33.0, 0) * 32.0;
-
             let entropy_bits = &bits[divider_index as usize..bits.len()];
-
             let check_sum_bits = &bits[0..divider_index as usize];
 
-            let re = Regex::new(r"(.{1,8})").unwrap();
-
-            let caps = re.captures(entropy_bits).unwrap();
-
-            let match_regex = caps.get(0).map_or("", |m| m.as_str());
+            let captures = Regex::new(r"(.{1,8})")
+                .unwrap()
+                .captures(entropy_bits)
+                .unwrap();
+            let match_regex = captures.get(0).map_or("", |m| m.as_str());
 
             let entropy_bytes = binary_to_byte(match_regex);
-
             let new_check_sum = derive_check_sum_bits(entropy_bytes);
 
             if new_check_sum != check_sum_bits {
@@ -238,8 +232,8 @@ impl Mnemonic {
     }
 
     // WIP: Need Private Key Library to finish
-    // Note: needed different naming; received duplication error
-    //       from previous to_private_key_function()
+    // Note: needs different naming; js SDK has two toPrivateKey() functions.
+    //       Not sure how to go about this
 
     /// Private function
     ///
@@ -253,16 +247,45 @@ impl Mnemonic {
         let input = format!("{}", self.words);
         let salt = format!("mnemonic{}", passphrase);
 
-        // let seed;
+        let mut seed: [u8; 64] = [0; 64];
+        pbkdf2::pbkdf2::<HmacSha384>(input.as_bytes(), salt.as_bytes(), 2048, &mut seed);
+        let digest = Sha384::digest(&seed);
+        let key_data = &digest[0..32];
+        let chain_code = &digest[32..];
+
+        // TODO: remove prints when done with testing
+        println!("Key Data: {:?}", key_data);
+        println!("Chain Code: {:?}", chain_code);
+
+        // TODO
+        for _ in [44, 3030, 0, 0].iter() {
+            let (get_key_data, get_chain_code) = Mnemonic::slip10_derive(key_data, chain_code);
+        }
 
         // Placeholder Private Key
+        // TODO: Need integration with Private Key
         let private_key = PrivateKey::generate();
         Ok(private_key)
     }
 
+    // WIP: Not sure about this function
+    pub fn slip10_derive(parent_key: &[u8], chain_code: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let mut initial_input: Vec<u8> = Vec::new();
+
+        initial_input[0] = 0;
+        let mut input = [&initial_input[..], &parent_key[..]].concat();
+        input[33] |= 128;
+
+        pbkdf2::pbkdf2::<HmacSha384>(parent_key, chain_code, 1, &mut input);
+
+        let digest = Sha384::digest(&input);
+
+        return ((&digest[0..32]).to_vec(), (&digest[32..]).to_vec());
+    }
+
     // WIP: Finish deriving/returning new private key.
     //      *note - Needs private key function derive to finish
-    
+
     /// Returns a Private Key.
     ///
     /// # Arguments
@@ -270,7 +293,7 @@ impl Mnemonic {
     /// `&self` - Current instance of Mnemonic.
     //
     pub fn to_legacy_private_key(&self) -> Result<PrivateKey, KeyError> {
-        let index: i32 = if self.legacy { -1 } else { 0 };
+        //let index: i32 = if self.legacy { -1 } else { 0 };
 
         let seed: Vec<u8> = if self.legacy {
             let result = entropy::legacy_1(&self.words).0;
@@ -437,10 +460,11 @@ mod tests {
     // WIP: How to test this?
     #[test]
     fn test_from_words() -> Result<(), MnemonicError> {
-        let mnem = Mnemonic::generate(12)?;
-        let words_test = Mnemonic::from_words(mnem.words)?;
-        println!("{:?}", words_test);
+        let gen_mnemonic = Mnemonic::generate(12)?;
+        let mnemonic = Mnemonic::from_words(gen_mnemonic.words)?;
+        //let expected_err = Err(MnemonicError::UnknownWord).unwrap_err();
 
+        println!("{:?}", mnemonic);
         Ok(())
     }
 
