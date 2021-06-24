@@ -3,9 +3,7 @@ use crate::legacy_words::LEGACY_WORDS;
 use bip39::Mnemonic as Bip39Mnemonic;
 use num_bigint::ToBigInt;
 use rand::AsByteSliceMut;
-use sha2::Digest;
-use sha2::Sha384;
-use std::collections::HashMap;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -63,12 +61,14 @@ pub fn convert_radix(nums: &[u8], from_radix: u16, to_radix: u16) -> Vec<u8> {
         num = num + i;
     }
 
-    let to_length = 32;
+    let mut result = Vec::new();
 
-    let result = (0..to_length).iter().rev().map(|value| {
-        num = &num / to_radix;
-        num % to_radix;
-    }).rev().collect::<Vec<u8>>();
+    for _ in (0..33).rev() {
+        let tem = &num / to_radix;
+        let rem = num % to_radix;
+        num = tem;
+        result.push(rem.to_string().parse::<u8>().unwrap());
+    }
     return result;
 }
 
@@ -82,50 +82,20 @@ pub fn convert_radix(nums: &[u8], from_radix: u16, to_radix: u16) -> Vec<u8> {
 ///
 pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
     let concat_bits_len = words.word_count() * 11;
-    let mut concat_bits = Vec::new();
 
-    for _ in 0..concat_bits_len {
-        concat_bits.push(false)
-    }
+    let mut concat_bits = vec![false; words.word_count() * 11];
 
-    let word_string = format!("{}", words);
-    let word_list = word_string.split(" ").collect::<Vec<&str>>();
+    let word_list = words.word_iter().collect::<Vec<&str>>();
 
-    let mut word_entries = HashMap::new();
-
-    let mut i = 0;
-
-    // Insert word_entries as key value pairs => (index, word)
-    while i < word_list.len() {
-        word_entries.insert(i, format!("{}", word_list[i]));
-
-        i += 1;
-
-        if i >= word_list.len() {
-            break;
-        }
-    }
-
-    for (word_index, word) in &word_entries {
+    for (word_index, word) in word_list.iter().enumerate() {
         let index = BIP39_WORDS
-            .iter()
-            .position(|&index| index == word.to_lowercase())
-            .unwrap();
+            .binary_search(&&word.to_lowercase()[..])
+            .map_err(|_| {
+                EntropyError::WordNotFound(word.to_string())
+            })?;
 
-        if index <= 0 {
-            return Err(EntropyError::WordNotFound(word.to_string()));
-        }
-
-        let mut j = 0;
-
-        while j < 11 {
+        for j in 0..11 {
             concat_bits[word_index * 11 + j] = index & (1 << (10 - j)) != 0;
-
-            j += 1;
-
-            if j > 11 {
-                break;
-            }
         }
     }
 
@@ -141,7 +111,7 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
         }
     }
 
-    let hash = Sha384::digest(&entropy);
+    let hash = Sha256::digest(&entropy);
     let hash_bits = bytes_to_bits(&hash);
 
     for i in 0..check_sum_bits_len as usize {
@@ -149,9 +119,6 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
             return Err(EntropyError::ChecksumMismatch);
         }
     }
-
-    // TODO: Remove println when done w/ testing
-    println!("{:?}", entropy);
     return Ok(entropy);
 }
 
@@ -163,34 +130,20 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
 ///
 pub fn crc_8(data: &[u8]) -> u8 {
     let mut crc: u8 = 0xff;
-
-    let mut i = 0;
-
-    while i < data.len() {
+    
+    for i in 0..data.len(){
         crc ^= data[i];
 
-        let mut j = 0;
-
-        while j < 8 {
-            if ((crc >> 1) ^ (crc & 1)) == 0 {
-                0;
+        for _ in 0..8 {
+            crc = if ((crc >> 1) ^ (crc & 1)) == 0 {
+                0
             } else {
-                0xb2;
-            }
+                0xb2
+            };
 
-            j += 1;
-
-            if j >= 8 {
-                break;
-            }
-        }
-
-        i += 1;
-
-        if i >= data.len() {
-            break;
         }
     }
+
     return crc ^ 0xff;
 }
 
@@ -201,12 +154,7 @@ pub fn crc_8(data: &[u8]) -> u8 {
 /// `data` - Slice of u8 numbers
 ///
 pub fn bytes_to_bits(data: &[u8]) -> Vec<bool> {
-    let concat_bits_len = data.len() * 8;
-    let mut bits = Vec::new();
-
-    for _ in 0..concat_bits_len {
-        bits.push(false)
-    }
+   let mut bits = vec![false; data.len() * 8];
 
     for i in 0..data.len() {
         for j in 0..8 {

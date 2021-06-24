@@ -72,17 +72,15 @@ impl Mnemonic {
     /// Returns a new random 12-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_12() -> Result<Mnemonic, MnemonicError> {
-        let mnemonic = Mnemonic::generate(12)?;
-        Ok(mnemonic)
+    pub fn generate_12() -> Result<Mnemonic, MnemonicError>{
+        return Mnemonic::generate(12);
     }
 
     /// Returns a new random 24-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_24() -> Result<Mnemonic, MnemonicError> {
-        let mnemonic = Mnemonic::generate(24)?;
-        Ok(mnemonic)
+    pub fn generate_24() -> Result<Mnemonic, MnemonicError>{
+        return Mnemonic::generate(24);
     }
 
     // Construct a mnemonic from a list of words. Handles 12, 22 (legacy), and 24 words.
@@ -106,8 +104,8 @@ impl Mnemonic {
             words,
             legacy: word_count == 22,
         };
-        let validated_mnemonic = new_mnemonic.validate()?;
-        Ok(validated_mnemonic)
+
+        Ok(new_mnemonic.validate()?)
     }
 
     // WIP: Need Private Key Library to finish/ Switch out unwraps()
@@ -144,22 +142,17 @@ impl Mnemonic {
     ///
     fn validate(self) -> Result<Self, MnemonicError> {
         if self.legacy {
-            if Bip39Mnemonic::word_count(&self.words) != 22 {
+            if self.words.word_count() != 22 {
                 return Err(MnemonicError::Length(Bip39Mnemonic::word_count(
                     &self.words,
                 )));
             }
 
-            let mnemonic_as_string = format!("{}", self.words);
-            let mnem = mnemonic_as_string.split(" ");
-            let word_list = mnem.collect::<Vec<&str>>();
-
-            let mut unknown_word_indices = Vec::new();
-            for word in word_list.iter() {
-                if LEGACY_WORDS.contains(word) {
-                    unknown_word_indices.push(word);
-                }
-            }
+            let unknown_word_indices = self.words.word_iter().filter_map(|word| 
+                match LEGACY_WORDS.binary_search(&&word[..]) {
+                    Ok(_) => None,
+                    Err(index) => Some(index),
+                }).collect::<Vec<usize>>();
 
             if unknown_word_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
@@ -178,15 +171,14 @@ impl Mnemonic {
                 )));
             }
 
-            let word_string = format!("{}", self.words);
-            let word_list = word_string.split(" ").collect::<Vec<&str>>();
+            let word_list = self.words.word_iter().collect::<Vec<&str>>();
 
-            let mut unknown_word_indices = Vec::new();
-            for word in word_list.iter() {
-                if BIP39_WORDS.contains(word) {
-                    unknown_word_indices.push(word);
-                }
-            }
+            let unknown_word_indices = self.words.word_iter().filter_map(|word| 
+                match BIP39_WORDS.binary_search(&&word[..]) {
+                    Ok(_) => None,
+                    Err(index) => Some(index),
+                }).collect::<Vec<usize>>();
+
 
             if unknown_word_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
@@ -384,6 +376,8 @@ pub fn derive_check_sum_bits(entropy_buffer: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use rand::AsByteSliceMut;
+
     use super::*;
 
     #[test]
@@ -488,6 +482,20 @@ mod tests {
     // TODO: Write test for to_private_key()
     #[test]
     fn test_to_private_key() -> Result<(), MnemonicError> {
+        Ok(())
+    }
+
+    #[test]
+    fn test_convert_radix() -> Result<(), MnemonicError>{
+        let mnem = Mnemonic::generate_12()?;
+        let mnem_words = mnem.words;
+        let mut indices = mnem_words
+        .word_iter()
+        .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
+        .collect::<Vec<usize>>();
+        let test = entropy::convert_radix(indices.as_byte_slice_mut(), LEGACY_WORDS.len() as u16, 256);
+        println!("{:?}", test);
+
         Ok(())
     }
 }
