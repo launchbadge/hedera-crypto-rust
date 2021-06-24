@@ -22,16 +22,16 @@ type HmacSha384 = Hmac<Sha384>;
 
 #[derive(Debug, Error)]
 pub enum MnemonicError {
-    #[error("The mnemonic has an invalid checksum.")]
+    #[error("the mnemonic has an invalid checksum")]
     CheckSumMismatch,
 
-    #[error("Legacy 22-word mnemonics do not support passphrases")]
+    #[error("legacy 22-word mnemonics do not support passphrases")]
     Passphrase,
 
-    #[error("Invalid entropy length: {0}. Only 12 and 24 are supported.")]
+    #[error("invalid entropy length: {0}. Only 12 and 24 are supported")]
     Length(usize),
 
-    #[error("Mnemonic contained words that are not in the standard word list")]
+    #[error("mnemonic contained words that are not in the standard word list")]
     UnknownWord,
 
     #[error(transparent)]
@@ -376,8 +376,6 @@ pub fn derive_check_sum_bits(entropy_buffer: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use rand::AsByteSliceMut;
-
     use super::*;
 
     #[test]

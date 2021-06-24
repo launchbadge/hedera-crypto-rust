@@ -1,5 +1,5 @@
 [package]
-name = "hedera_crypto"
+name = "hedera-crypto"
 version = "0.0.0"
 edition = "2018"
 authors = ["LaunchBadge <contact@launchbadge.com>"]
@@ -8,19 +8,24 @@ authors = ["LaunchBadge <contact@launchbadge.com>"]
 hex = "0.4.3"
 ed25519-dalek = "1.0.1"
 thiserror = "1.0.24"
-rand = "0.8.3"
-
+rand = "0.6.0"
 pbkdf2 = "0.8.0"
-
 aes = "0.7.4"
-#block-modes = "0.8.1"
-
+rand_core = { version = "0.6", features = ["std"] }
 sha2 = "0.9.5"
-
 hmac = "0.11.0"
 stream-ciphers = "0.0.0"
 ctr = "0.7.0"
-serde = { version = "1.0.125", features = ["derive"] }
+serde = { version = "1.0.125", features = [ "derive" ] }
 json = "0.12.4"
 serde_json = "1.0.64"
 serde_repr = "0.1.7"
+once_cell = "1.8.0"
+regex = "1.5.4"
+pad = "0.1.6"
+bip39 = "1.0.1"
+libmath = "0.2.1"
+num-bigint = "0.4.0"
+
+[dev-dependencies]
+anyhow = "1"

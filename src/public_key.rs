@@ -1,6 +1,7 @@
 use crate::key_error::KeyError;
 use ed25519_dalek::{Signature, Verifier};
 use hex;
+use once_cell::sync::Lazy;
 use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -10,10 +11,11 @@ use std::str;
 use std::str::FromStr;
 
 const DER_PREFIX: &str = "302a300506032b6570032100";
+const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());
 
 /// A Public Key on the Hedera™ Network
 #[derive(Debug, Eq, PartialEq)]
-pub struct PublicKey(ed25519_dalek::PublicKey);
+pub struct PublicKey(pub(crate) ed25519_dalek::PublicKey);
 
 impl Hash for PublicKey {
     fn hash<H>(&self, state: &mut H)
@@ -29,11 +31,9 @@ impl PublicKey {
     ///
     /// # Arguments
     ///
-    /// * `data` - An array of u8 with length of ed25519_dalek::PUBLIC_KEY_LENGTH.
+    /// * `data` - An array of bytes that represent a public key. Can be 32 or 44 bytes in length.
     ///
     pub fn from_bytes(data: &[u8]) -> Result<PublicKey, KeyError> {
-        let der_prefix_bytes = hex::decode("302a300506032b6570032100").unwrap();
-
         let public_key = match data.len() {
             32 => {
                 let public_key = PublicKey(
@@ -42,7 +42,7 @@ impl PublicKey {
                 public_key
             }
 
-            44 if data.starts_with(&der_prefix_bytes) => {
+            44 if data.starts_with(&DER_PREFIX_BYTES) => {
                 let public_key = PublicKey(
                     ed25519_dalek::PublicKey::from_bytes(&data[12..44])
                         .map_err(KeyError::Signature)?,
@@ -58,26 +58,12 @@ impl PublicKey {
         Ok(public_key)
     }
 
-    /// Return an array of u8 with length of ed25519_dalek::PUBLIC_KEY_LENGTH.
-    ///
-    /// # Arguments
-    ///
-    /// * `public_key` - ed25519_dalek::PublicKey
-    ///
+    /// Returns a byte representation of this public key.
     pub fn to_bytes(&self) -> [u8; ed25519_dalek::PUBLIC_KEY_LENGTH] {
         self.0.to_bytes()
     }
 
     /// Verify a signature on a message with this public key.
-    ///
-    /// # Arguments
-    ///
-    /// `&self` - current instance of PublicKey type.
-    ///
-    /// `message` - slice &[u8]
-    ///
-    /// `signature` - slice &[u8]
-    ///
     pub fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
         let signature = if let Ok(signature) = Signature::try_from(signature) {
             signature
@@ -99,7 +85,7 @@ impl FromStr for PublicKey {
     type Err = KeyError;
 
     fn from_str(text: &str) -> Result<Self, KeyError> {
-        let decoded_public_key = hex::decode(&text).unwrap();
+        let decoded_public_key = hex::decode(&text)?;
         let public_key = PublicKey::from_bytes(&decoded_public_key)?;
 
         Ok(public_key)

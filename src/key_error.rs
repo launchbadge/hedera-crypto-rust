@@ -1,11 +1,14 @@
-use ed25519_dalek;
+use ed25519_dalek::SignatureError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum KeyError {
-    #[error("invalid private key length: {0}")]
+    #[error(transparent)]
+    Hex(#[from] hex::FromHexError),
+
+    #[error("invalid private key length: {0} bytes")]
     Length(usize),
 
     #[error(transparent)]
-    Signature(#[from] ed25519_dalek::SignatureError),
+    Signature(#[from] SignatureError),
 }

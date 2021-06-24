@@ -2,9 +2,9 @@ use crate::bip39_words::BIP39_WORDS;
 use crate::legacy_words::LEGACY_WORDS;
 use bip39::Mnemonic as Bip39Mnemonic;
 use num_bigint::ToBigInt;
-use rand::AsByteSliceMut;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+use rand::AsByteSliceMut;
 
 #[derive(Debug, Error)]
 pub enum EntropyError {

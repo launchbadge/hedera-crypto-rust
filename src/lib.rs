@@ -1,13 +1,14 @@
-#![warn(unused_extern_crates)]
 mod key_error;
-mod private_key;
-
 mod keystore;
+mod private_key;
+mod mnemonic;
 mod public_key;
-pub use public_key::{KeyError, PublicKey};
+mod bip39_words;
+mod derive;
+mod entropy;
+mod legacy_words;
 
+pub use key_error::KeyError;
 pub use private_key::PrivateKey;
 pub use public_key::PublicKey;
-
-pub use keystore::KeyStore;
-
+pub use mnemonic::{Mnemonic, MnemonicError};
