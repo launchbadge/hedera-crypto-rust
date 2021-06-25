@@ -17,6 +17,7 @@ use std::fmt::{Display, Formatter};
 use std::str;
 use std::str::FromStr;
 use thiserror::Error;
+use rand::AsByteSliceMut;
 
 type HmacSha384 = Hmac<Sha384>;
 
@@ -72,14 +73,14 @@ impl Mnemonic {
     /// Returns a new random 12-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_12() -> Result<Mnemonic, MnemonicError>{
+    pub fn generate_12() -> Result<Mnemonic, MnemonicError> {
         return Mnemonic::generate(12);
     }
 
     /// Returns a new random 24-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_24() -> Result<Mnemonic, MnemonicError>{
+    pub fn generate_24() -> Result<Mnemonic, MnemonicError> {
         return Mnemonic::generate(24);
     }
 
@@ -148,11 +149,14 @@ impl Mnemonic {
                 )));
             }
 
-            let unknown_word_indices = self.words.word_iter().filter_map(|word| 
-                match LEGACY_WORDS.binary_search(&&word[..]) {
+            let unknown_word_indices = self
+                .words
+                .word_iter()
+                .filter_map(|word| match LEGACY_WORDS.binary_search(&&word[..]) {
                     Ok(_) => None,
                     Err(index) => Some(index),
-                }).collect::<Vec<usize>>();
+                })
+                .collect::<Vec<usize>>();
 
             if unknown_word_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
@@ -173,12 +177,14 @@ impl Mnemonic {
 
             let word_list = self.words.word_iter().collect::<Vec<&str>>();
 
-            let unknown_word_indices = self.words.word_iter().filter_map(|word| 
-                match BIP39_WORDS.binary_search(&&word[..]) {
+            let unknown_word_indices = self
+                .words
+                .word_iter()
+                .filter_map(|word| match BIP39_WORDS.binary_search(&&word[..]) {
                     Ok(_) => None,
                     Err(index) => Some(index),
-                }).collect::<Vec<usize>>();
-
+                })
+                .collect::<Vec<usize>>();
 
             if unknown_word_indices.len() > 0 {
                 return Err(MnemonicError::UnknownWord);
@@ -484,14 +490,15 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_radix() -> Result<(), MnemonicError>{
+    fn test_convert_radix() -> Result<(), MnemonicError> {
         let mnem = Mnemonic::generate_12()?;
         let mnem_words = mnem.words;
         let mut indices = mnem_words
-        .word_iter()
-        .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
-        .collect::<Vec<usize>>();
-        let test = entropy::convert_radix(indices.as_byte_slice_mut(), LEGACY_WORDS.len() as u16, 256);
+            .word_iter()
+            .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
+            .collect::<Vec<usize>>();
+        let test =
+            entropy::convert_radix(indices.as_byte_slice_mut(), LEGACY_WORDS.len() as u16, 256);
         println!("{:?}", test);
 
         Ok(())

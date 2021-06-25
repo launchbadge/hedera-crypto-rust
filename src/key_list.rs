@@ -1,10 +1,8 @@
 use crate::key::Key;
-use crate::public_key::PublicKey;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::ops::{Deref, DerefMut};
-use std::iter::FromIterator;
 use itertools::Itertools;
+use std::fmt;
+use std::iter::FromIterator;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Default)]
 pub struct KeyList {
@@ -46,7 +44,7 @@ impl DerefMut for KeyList {
 }
 
 impl<K: Into<Key>> FromIterator<K> for KeyList {
-    fn from_iter<I: IntoIterator<Item=K>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
         let mut l = Self::new();
 
         for i in iter {
@@ -79,9 +77,12 @@ mod tests {
     fn create_key_list_threshold() {
         let key_vec = gen_key_vec();
 
-        let mut key_list = KeyList::create_key_list(key_vec, Some(3));
+        let mut key_list = KeyList {
+            keys: key_vec,
+            threshold: Some(3),
+        };
 
-        KeyList::set_threshold(&mut key_list, 5);
+        key_list.threshold = Some(5);
 
         assert_eq!(key_list.threshold.unwrap(), 5);
     }
@@ -89,13 +90,16 @@ mod tests {
     #[test]
     fn test_push() {
         let key_vec = gen_key_vec();
-        let mut key_list = KeyList::create_key_list(key_vec, Some(3));
+        let mut key_list = KeyList {
+            keys: key_vec,
+            threshold: Some(3),
+        };
 
         let public_key_3 = PublicKey::from_bytes(PUBLIC_KEY_BYTES).unwrap();
 
         let key3 = PublicKey::into(public_key_3);
 
-        KeyList::push(&mut key_list, key3);
+        key_list.push(key3);
 
         assert_eq!(key_list.keys.len(), 3);
     }

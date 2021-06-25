@@ -2,9 +2,9 @@ use crate::bip39_words::BIP39_WORDS;
 use crate::legacy_words::LEGACY_WORDS;
 use bip39::Mnemonic as Bip39Mnemonic;
 use num_bigint::ToBigInt;
+use rand::AsByteSliceMut;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use rand::AsByteSliceMut;
 
 #[derive(Debug, Error)]
 pub enum EntropyError {
@@ -90,9 +90,7 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
     for (word_index, word) in word_list.iter().enumerate() {
         let index = BIP39_WORDS
             .binary_search(&&word.to_lowercase()[..])
-            .map_err(|_| {
-                EntropyError::WordNotFound(word.to_string())
-            })?;
+            .map_err(|_| EntropyError::WordNotFound(word.to_string()))?;
 
         for j in 0..11 {
             concat_bits[word_index * 11 + j] = index & (1 << (10 - j)) != 0;
@@ -130,8 +128,8 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
 ///
 pub fn crc_8(data: &[u8]) -> u8 {
     let mut crc: u8 = 0xff;
-    
-    for i in 0..data.len(){
+
+    for i in 0..data.len() {
         crc ^= data[i];
 
         for _ in 0..8 {
@@ -140,7 +138,6 @@ pub fn crc_8(data: &[u8]) -> u8 {
             } else {
                 0xb2
             };
-
         }
     }
 
@@ -154,7 +151,7 @@ pub fn crc_8(data: &[u8]) -> u8 {
 /// `data` - Slice of u8 numbers
 ///
 pub fn bytes_to_bits(data: &[u8]) -> Vec<bool> {
-   let mut bits = vec![false; data.len() * 8];
+    let mut bits = vec![false; data.len() * 8];
 
     for i in 0..data.len() {
         for j in 0..8 {
