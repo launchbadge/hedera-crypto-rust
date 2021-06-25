@@ -26,6 +26,7 @@ pad = "0.1.6"
 bip39 = "1.0.1"
 libmath = "0.2.1"
 num-bigint = "0.4.0"
+itertools = "0.10.1"
 
 [dev-dependencies]
 anyhow = "1"

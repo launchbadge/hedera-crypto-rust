@@ -1,24 +1,15 @@
 use crate::key::Key;
-use std::fmt;
-use std::ops::Deref;
 use crate::public_key::PublicKey;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::ops::{Deref, DerefMut};
+use std::iter::FromIterator;
+use itertools::Itertools;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct KeyList {
     pub keys: Vec<Key>,
     pub threshold: Option<usize>,
-}
-
-impl From<PublicKey> for Key {
-    fn from(public_key: PublicKey) -> Self {
-        Key::PublicKey(public_key)
-    }
-}
-
-impl From<KeyList> for Key {
-    fn from(list: KeyList) -> Self {
-        Key::KeyList(list)
-    }
 }
 
 impl From<Vec<Key>> for KeyList {
@@ -33,43 +24,49 @@ impl From<Vec<Key>> for KeyList {
 // todo: fix this trait
 impl fmt::Display for KeyList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-
-        write!(f, "keys: {:?} threshold: {}", self.keys, self.threshold.unwrap())
+        f.debug_struct("KeyList")
+            .field("threshold", &self.threshold)
+            .field("keys", &format!("[{}]", self.keys.iter().format(",")))
+            .finish()
     }
 }
 
-// deref into a slice of keys
-// todo: test this trait
 impl Deref for KeyList {
-    type Target = [Key];
+    type Target = Vec<Key>;
+
     fn deref(&self) -> &Self::Target {
         &self.keys
     }
 }
 
-impl KeyList {
-    pub fn create_key_list(keys: Vec<Key>, threshold: Option<usize>) -> KeyList {
-        KeyList{
-            keys,
-            threshold,
-        }
-    }
-
-    pub fn set_threshold(&mut self, threshold: usize) -> &mut Self {
-        self.threshold = Some(threshold);
-        self
-    }
-
-    pub fn push(&mut self, key: Key)  {
-        self.keys.push(key);
+impl DerefMut for KeyList {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.keys
     }
 }
 
+impl<K: Into<Key>> FromIterator<K> for KeyList {
+    fn from_iter<I: IntoIterator<Item=K>>(iter: I) -> Self {
+        let mut l = Self::new();
+
+        for i in iter {
+            l.push(i.into());
+        }
+
+        l
+    }
+}
+
+impl KeyList {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::public_key::PublicKey;
     use crate::key::Key;
+    use crate::public_key::PublicKey;
 
     use super::KeyList;
 
@@ -104,9 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn test_display() {
-
-    }
+    fn test_display() {}
 
     fn gen_key_vec() -> Vec<Key> {
         let public_key_1 = PublicKey::from_bytes(PUBLIC_KEY_BYTES).unwrap();
@@ -115,6 +110,6 @@ mod tests {
         let key1 = PublicKey::into(public_key_1);
         let key2 = PublicKey::into(public_key_2);
 
-        vec!(key1, key2)
+        vec![key1, key2]
     }
 }
