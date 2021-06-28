@@ -10,7 +10,7 @@ ed25519-dalek = "1.0.1"
 thiserror = "1.0.24"
 rand = "0.6.0"
 pbkdf2 = { version = "0.8", default-features = false }
-aes = "0.7.4"
+aes = { version = "0.7.4", features = ["ctr"] }
 rand_core = { version = "0.6", features = ["std"] }
 sha2 = "0.9.5"
 hmac = "0.11.0"

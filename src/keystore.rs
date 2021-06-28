@@ -1,4 +1,8 @@
 use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
+use aes::{Aes128, Aes128Ctr};
+use aes::cipher::{
+    BlockCipher, BlockEncrypt, BlockDecrypt, NewBlockCipher,
+};
 use hmac::{Hmac, Mac, NewMac};
 use json::Error;
 use rand::Rng;
@@ -7,12 +11,7 @@ use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
 use std::{fmt, str};
 
-use std::time::{Instant, Duration};
-
-// CTR mode implementation is generic over block ciphers
-// we will create a type alias for convenience
-#[allow(dead_code)]
-type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
+use std::time::{Duration, Instant};
 
 // Create alias for HMAC-SHA256
 #[allow(dead_code)]
@@ -81,16 +80,15 @@ impl fmt::Display for HmacError {
 }
 
 // create keystore
-//      returns JSON buffer that is a keystore
+//      returns string that is a keystore
 impl KeyStore {
     #[allow(dead_code)]
-    fn create_keystore(private_key: &[u8], pass: &str) -> (String, Duration) {
-        //type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
+    fn create_keystore(private_key: &[u8], pass: &str) -> String {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let pk_len = private_key.len();
         let salt = rand::thread_rng().gen::<[u8; 32]>();
-        let iv = rand::thread_rng().gen::<[u8; 16]>();
+        let mut iv = rand::thread_rng().gen::<[u8; 16]>();
 
         let start = Instant::now();
 
@@ -136,7 +134,10 @@ impl KeyStore {
             },
         };
 
-        (hex::encode(serde_json::to_string(&keystore).unwrap()), end)
+        println!("Benchmark 1 (Micros): {}", end.as_micros());
+        println!("Benchmark 1 (Seconds): {}", end.as_secs());
+
+        hex::encode(serde_json::to_string(&keystore).unwrap())
     }
 
     #[allow(dead_code)]
@@ -183,7 +184,6 @@ impl KeyStore {
         // compare two vectors to verify hmac:
         mac.verify(&mac_decode).map_err(|_| HmacError)?;
 
-        // todo: decipher iv
         let iv_decode = hex::decode(keystore_serde.crypto.cipher_params.iv).unwrap();
 
         // decrypt the cipher
@@ -191,12 +191,9 @@ impl KeyStore {
         cipher.seek(0);
         cipher.apply_keystream(&mut key_buffer);
 
-
-
         println!("Benchmark 2 (Micros): {}", end.as_micros());
         println!("Benchmark 2 (Seconds): {}", end.as_secs());
 
-        // todo: return keypair based on deciphered iv
         Ok(hex::encode(key_buffer))
     }
 }
@@ -218,9 +215,6 @@ mod tests {
         let (keystore, end) = KeyStore::create_keystore(&hex_string, "hello");
 
         let ending = start.elapsed();
-
-        println!("Benchmark 1 (Micros): {}", end.as_micros());
-        println!("Benchmark 1 (Seconds): {}", end.as_secs());
 
         println!("Benchmark keystore (Micros): {}", ending.as_micros());
         println!("Benchmark keystore (Seconds): {}", ending.as_secs());
@@ -270,7 +264,6 @@ mod tests {
         };
 
         assert!(check_hmac);
-
     }
 
     #[cfg(test)]
