@@ -9,6 +9,10 @@ use std::str::FromStr;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
+use pem::parse;
+use openssl::rsa::Rsa;
+use openssl::symm::{Cipher};
+
 
 use crate::key_error::KeyError;
 
@@ -80,6 +84,34 @@ impl PrivateKey {
     pub fn public_key(&self) -> crate::PublicKey {
         crate::PublicKey(self.keypair.public)
     }
+
+    pub fn derive(&self, )
+
+    pub fn is_derivable(&self) -> bool {
+        self.chain_code != None
+    }
+
+    //Decode private key from PEM string
+    //
+    pub fn from_pem(data: String, _passphrase: String) -> Result<PrivateKey, KeyError> {
+        let bytes: Vec<u8> = data.as_bytes().to_vec();
+        let pem = parse(bytes).unwrap();
+
+        PrivateKey::from_bytes(&pem.contents)
+    }
+
+    pub fn to_pem(passphrase: String) -> String {
+        let key = Rsa::generate(2048).unwrap();
+        let pem = key
+            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes()).unwrap();
+
+        let s = str::from_utf8(&pem).unwrap();
+
+        s.to_string()
+    }
+
+
+
 }
 
 impl Hash for PrivateKey {
@@ -190,6 +222,15 @@ mod tests {
         let signature_bytes: [u8; SIGNATURE_LENGTH] = signature.to_bytes();
 
         assert_eq!(PrivateKey::sign(&key, message), signature_bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_pem() -> Result<(), KeyError> {
+        let pem = PrivateKey::to_pem("asdf1234".to_string());
+
+        println!("Pem: {}", pem);
 
         Ok(())
     }

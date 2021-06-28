@@ -6,6 +6,9 @@ pub enum KeyError {
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
 
+    #[error(transparent)]
+        
+
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
 
