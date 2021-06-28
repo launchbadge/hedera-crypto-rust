@@ -13,6 +13,10 @@ use openssl::symm::{encrypt, Cipher};
 use openssl::{pkey::PKey, rsa::Rsa};
 use pkcs8::{AlgorithmIdentifier, EncryptedPrivateKeyDocument, PrivateKeyDocument, PrivateKeyInfo};
 use rand::{thread_rng, Rng};
+use pem::parse;
+use openssl::rsa::Rsa;
+use openssl::symm::{Cipher};
+
 
 use crate::mnemonic::Mnemonic;
 use crate::slip10::derive;
