@@ -1,10 +1,13 @@
 use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
 use hmac::{Hmac, Mac, NewMac};
+use json::Error;
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
-use std::str;
+use std::{fmt, str};
+
+use std::time::{Instant, Duration};
 
 // CTR mode implementation is generic over block ciphers
 // we will create a type alias for convenience
@@ -68,20 +71,33 @@ struct KeyStore {
     crypto: Crypto,
 }
 
+#[derive(Debug, Clone)]
+struct HmacError;
+
+impl fmt::Display for HmacError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "HMAC mismatch; passphrase is incorrect")
+    }
+}
+
 // create keystore
 //      returns JSON buffer that is a keystore
 impl KeyStore {
     #[allow(dead_code)]
-    fn create_keystore(private_key: &[u8], pass: &str) -> String {
+    fn create_keystore(private_key: &[u8], pass: &str) -> (String, Duration) {
         //type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
-
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let pk_len = private_key.len();
         let salt = rand::thread_rng().gen::<[u8; 32]>();
         let iv = rand::thread_rng().gen::<[u8; 16]>();
 
+        let start = Instant::now();
+
+        // this line takes a hefty 5 seconds to run. yikes.
         pbkdf2::pbkdf2::<HmacSha256>(pass.as_bytes(), &salt, c_iter, &mut derived_key);
+
+        let end = start.elapsed();
 
         // AES-128-CTR with the first half of the derived key and a random IV
         let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv).unwrap();
@@ -119,11 +135,12 @@ impl KeyStore {
                 mac: hex::encode((&*code_bytes).to_vec()),
             },
         };
-        hex::encode(serde_json::to_string(&keystore).unwrap())
+
+        (hex::encode(serde_json::to_string(&keystore).unwrap()), end)
     }
 
     #[allow(dead_code)]
-    fn load_keystore(keystore: &str, pass: &str) -> String {
+    fn load_keystore(keystore: &str, pass: &str) -> Result<String, HmacError> {
         let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore_decode).unwrap();
 
@@ -142,6 +159,7 @@ impl KeyStore {
             );
         }
 
+        let start = Instant::now();
         // derive key
         let mut derived_key: [u8; 32] = [0; 32];
         pbkdf2::pbkdf2::<HmacSha256>(
@@ -150,6 +168,8 @@ impl KeyStore {
             keystore_serde.crypto.kdf_params.c,
             &mut derived_key,
         );
+
+        let end = start.elapsed();
 
         // verify mac
         let mut key_buffer = hex::decode(&keystore_serde.crypto.ciphertext).unwrap();
@@ -161,10 +181,7 @@ impl KeyStore {
         let mac_decode = hex::decode(keystore_serde.crypto.mac).unwrap();
 
         // compare two vectors to verify hmac:
-        match mac.verify(&mac_decode) {
-            Ok(_) => (),
-            Err(_) => panic!("HMAC mismatch; passphrase is incorrect"),
-        };
+        mac.verify(&mac_decode).map_err(|_| HmacError)?;
 
         // todo: decipher iv
         let iv_decode = hex::decode(keystore_serde.crypto.cipher_params.iv).unwrap();
@@ -174,21 +191,39 @@ impl KeyStore {
         cipher.seek(0);
         cipher.apply_keystream(&mut key_buffer);
 
+
+
+        println!("Benchmark 2 (Micros): {}", end.as_micros());
+        println!("Benchmark 2 (Seconds): {}", end.as_secs());
+
         // todo: return keypair based on deciphered iv
-        hex::encode(key_buffer)
+        Ok(hex::encode(key_buffer))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::keystore::KeyStore;
+    use crate::keystore::{HmacError, KeyStore};
     use std::str;
+
+    // for benchmarking only
+    use std::time::Instant;
 
     #[test]
     fn create_keystore() {
+        let start = Instant::now();
+
         let hex_string = hex::decode("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").unwrap();
 
-        let keystore: String = KeyStore::create_keystore(&hex_string, "hello");
+        let (keystore, end) = KeyStore::create_keystore(&hex_string, "hello");
+
+        let ending = start.elapsed();
+
+        println!("Benchmark 1 (Micros): {}", end.as_micros());
+        println!("Benchmark 1 (Seconds): {}", end.as_secs());
+
+        println!("Benchmark keystore (Micros): {}", ending.as_micros());
+        println!("Benchmark keystore (Seconds): {}", ending.as_secs());
 
         print_keystores(&keystore);
 
@@ -201,9 +236,9 @@ mod tests {
         let p_key = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let keystore: String = KeyStore::create_keystore(&hex_string, "hello");
+        let (keystore, elapsed) = KeyStore::create_keystore(&hex_string, "hello");
 
-        let keystore_2: String = KeyStore::load_keystore(&keystore, "hello");
+        let keystore_2: String = KeyStore::load_keystore(&keystore, "hello").unwrap();
 
         println!("Test load_keystore: ");
         assert_eq!(keystore_2, p_key);
@@ -214,7 +249,7 @@ mod tests {
         let p_key = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let keystore: String = KeyStore::create_keystore(&hex_string, "hello");
+        let (keystore, elapsed) = KeyStore::create_keystore(&hex_string, "hello");
 
         let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore_decode).unwrap();
@@ -227,7 +262,15 @@ mod tests {
 
         print_keystores(&keystore_guy);
 
-        let keystore_2: String = KeyStore::load_keystore(&keystore_guy, "hello");
+        let keystore_2 = KeyStore::load_keystore(&keystore_guy, "hello");
+
+        let check_hmac = match keystore_2 {
+            Ok(String) => false,
+            Err(HmacError) => true,
+        };
+
+        assert!(check_hmac);
+
     }
 
     #[cfg(test)]
