@@ -340,11 +340,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d95f5254224e617595d2cc3cc73ff0a5eaf2637519e25f03388154e9378b6ffa"
 dependencies = [
- "base64ct",
  "crypto-mac",
- "hmac",
- "password-hash",
- "sha2",
 ]
 
 [[package]]
