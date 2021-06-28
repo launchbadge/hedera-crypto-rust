@@ -19,7 +19,6 @@ impl From<Vec<Key>> for KeyList {
     }
 }
 
-// todo: fix this trait
 impl fmt::Display for KeyList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyList")
