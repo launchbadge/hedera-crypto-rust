@@ -110,6 +110,10 @@ impl PrivateKey {
         s.to_string()
     }
 
+    // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
+    //     let load_keystore = keystore_bytes.load_keystore();
+    // }
+
 
 
 }
