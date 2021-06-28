@@ -9,6 +9,7 @@ dependencies = [
  "cfg-if",
  "cipher",
  "cpufeatures",
+ "ctr",
  "opaque-debug",
 ]
 
