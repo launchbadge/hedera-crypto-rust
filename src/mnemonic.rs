@@ -10,6 +10,7 @@ use math::round;
 use pad::{Alignment, PadStr};
 use private_key::PrivateKey;
 use rand::thread_rng;
+use rand::AsByteSliceMut;
 use regex::Regex;
 use sha2::{Digest, Sha384};
 use std::fmt;
@@ -17,7 +18,6 @@ use std::fmt::{Display, Formatter};
 use std::str;
 use std::str::FromStr;
 use thiserror::Error;
-use rand::AsByteSliceMut;
 
 type HmacSha384 = Hmac<Sha384>;
 
