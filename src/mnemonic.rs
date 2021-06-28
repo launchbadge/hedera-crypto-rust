@@ -489,18 +489,17 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_convert_radix() -> Result<(), MnemonicError> {
-        let mnem = Mnemonic::generate_12()?;
-        let mnem_words = mnem.words;
-        let mut indices = mnem_words
-            .word_iter()
-            .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
-            .collect::<Vec<usize>>();
-        let test =
-            entropy::convert_radix(indices.as_byte_slice_mut(), LEGACY_WORDS.len() as u16, 256);
-        println!("{:?}", test);
+    // #[test]
+    // fn test_convert_radix() -> Result<(), MnemonicError>{
+    //     let mnem = Mnemonic::generate_12()?;
+    //     let mnem_words = mnem.words;
+    //     let mut indices = mnem_words
+    //     .word_iter()
+    //     .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
+    //     .collect::<Vec<usize>>();
+    //     let test = entropy::convert_radix(indices.as_byte_slice_mut(), LEGACY_WORDS.len() as u16, 256);
+    //     println!("{:?}", test);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
