@@ -1,5 +1,7 @@
-use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
+use crate::private_key::PrivateKey;
 use aes::Aes128Ctr;
+use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
+use ed25519_dalek::{Keypair, SecretKey};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -139,7 +141,7 @@ impl KeyStore {
     }
 
     #[allow(dead_code)]
-    fn load_keystore(keystore: &[u8], pass: &str) -> Result<String, HmacError> {
+    fn load_keystore(keystore: &[u8], pass: &str) -> Result<Keypair, HmacError> {
         let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore_decode).unwrap();
 
@@ -192,13 +194,32 @@ impl KeyStore {
         println!("Benchmark 2 (Micros): {}", end.as_micros());
         println!("Benchmark 2 (Seconds): {}", end.as_secs());
 
-        Ok(hex::encode(key_buffer))
+        let secret_key = SecretKey::from_bytes(hex::encode(key_buffer).as_bytes()).unwrap();
+        let public_key = (&secret_key).into();
+
+        Ok(Keypair {
+            secret: secret_key,
+            public: public_key,
+        })
+
+        //Ok(hex::encode(key_buffer))
+    }
+
+    #[warn(dead_code)]
+    pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, HmacError> {
+        let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
+        Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
+    }
+
+    pub fn to_keystore(key: &[u8], pass: &str) -> Vec<u8> {
+        KeyStore::create_keystore(key, pass)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::keystore::{HmacError, KeyStore};
+    use ed25519_dalek::Keypair;
     use std::str;
 
     // for benchmarking only
@@ -230,7 +251,7 @@ mod tests {
 
         let keystore = KeyStore::create_keystore(&hex_string, "hello");
 
-        let keystore_2: String = KeyStore::load_keystore(&keystore, "hello").unwrap();
+        let keystore_2: Keypair = KeyStore::load_keystore(&keystore, "hello").unwrap();
 
         println!("Test load_keystore: ");
         assert_eq!(keystore_2, p_key);
@@ -250,14 +271,15 @@ mod tests {
 
         keystore_serde.crypto.mac = format!("a0");
 
-        let keystore_guy = hex::encode(serde_json::to_string(&keystore_serde).unwrap()).into_bytes();
+        let keystore_guy =
+            hex::encode(serde_json::to_string(&keystore_serde).unwrap()).into_bytes();
 
         print_keystores(&keystore_guy);
 
         let keystore_2 = KeyStore::load_keystore(&keystore_guy, "hello");
 
         let check_hmac = match keystore_2 {
-            Ok(String) => false,
+            Ok(Keypair) => false,
             Err(HmacError) => true,
         };
 
