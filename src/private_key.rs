@@ -1,3 +1,4 @@
+use crate::keystore;
 use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::{Display, Formatter};
