@@ -27,6 +27,9 @@ bip39 = "1.0.1"
 libmath = "0.2.1"
 num-bigint = "0.4.0"
 itertools = "0.10.1"
+pem = "0.8.3"
+openssl = "0.10.35"
+byteorder = "1.4.3"
 
 [dev-dependencies]
 anyhow = "1"

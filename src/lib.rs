@@ -10,6 +10,7 @@ mod public_key;
 pub use key_error::KeyError;
 mod key;
 mod key_list;
+mod slip10;
 
 pub use mnemonic::{Mnemonic, MnemonicError};
 pub use private_key::PrivateKey;

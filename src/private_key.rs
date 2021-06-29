@@ -9,8 +9,13 @@ use std::str::FromStr;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
+use pem::parse;
+use openssl::rsa::Rsa;
+use openssl::symm::{Cipher};
+
 
 use crate::key_error::KeyError;
+use crate::slip10::derive;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
 const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());
@@ -80,6 +85,49 @@ impl PrivateKey {
     pub fn public_key(&self) -> crate::PublicKey {
         crate::PublicKey(self.keypair.public)
     }
+
+    pub fn derive(&self, index: u32) -> Result<Self, KeyError> {
+        if self.chain_code == None {
+            Err(KeyError::DeriveError(index))
+        } else {
+            let (key_data, chain_code) = derive(&self.keypair.secret.to_bytes(), &self.chain_code.unwrap(), index);
+
+            let key_pair = to_keypair(&key_data[..SECRET_KEY_LENGTH]);
+
+            Ok(Self{keypair: key_pair?, chain_code:Some(<[u8; 32]>::try_from(chain_code).unwrap())})
+        }
+    }   
+
+
+    pub fn is_derivable(&self) -> bool {
+        self.chain_code != None
+    }
+
+    //Decode private key from PEM string
+    //
+    pub fn from_pem(data: String, _passphrase: String) -> Result<PrivateKey, KeyError> {
+        let bytes: Vec<u8> = data.as_bytes().to_vec();
+        let pem = parse(bytes).unwrap();
+
+        PrivateKey::from_bytes(&pem.contents)
+    }
+
+    pub fn to_pem(passphrase: String) -> String {
+        let key = Rsa::generate(2048).unwrap();
+        let pem = key
+            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes()).unwrap();
+
+        let s = str::from_utf8(&pem).unwrap();
+
+        s.to_string()
+    }
+
+    // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
+    //     let load_keystore = keystore_bytes.load_keystore();
+    // }
+
+
+
 }
 
 impl Hash for PrivateKey {
@@ -190,6 +238,15 @@ mod tests {
         let signature_bytes: [u8; SIGNATURE_LENGTH] = signature.to_bytes();
 
         assert_eq!(PrivateKey::sign(&key, message), signature_bytes);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_pem() -> Result<(), KeyError> {
+        let pem = PrivateKey::to_pem("asdf1234".to_string());
+
+        println!("Pem: {}", pem);
 
         Ok(())
     }

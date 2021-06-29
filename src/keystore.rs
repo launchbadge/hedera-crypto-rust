@@ -68,13 +68,12 @@ struct KeyStore {
     crypto: Crypto,
 }
 
+// todo: make this take in array of bytes and output array of bytes
 // create keystore
 //      returns JSON buffer that is a keystore
 impl KeyStore {
     #[allow(dead_code)]
     fn create_keystore(private_key: &[u8], pass: &str) -> String {
-        //type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
-
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let pk_len = private_key.len();
