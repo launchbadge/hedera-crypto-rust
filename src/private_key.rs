@@ -1,3 +1,4 @@
+use crate::keystore;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::fmt;
