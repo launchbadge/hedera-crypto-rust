@@ -1,17 +1,13 @@
 use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
-use aes::{Aes128, Aes128Ctr};
-use aes::cipher::{
-    BlockCipher, BlockEncrypt, BlockDecrypt, NewBlockCipher,
-};
+use aes::Aes128Ctr;
 use hmac::{Hmac, Mac, NewMac};
-use json::Error;
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
 use std::{fmt, str};
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 // Create alias for HMAC-SHA256
 #[allow(dead_code)]
@@ -83,12 +79,12 @@ impl fmt::Display for HmacError {
 //      returns string that is a keystore
 impl KeyStore {
     #[allow(dead_code)]
-    fn create_keystore(private_key: &[u8], pass: &str) -> String {
+    fn create_keystore(private_key: &[u8], pass: &str) -> Vec<u8> {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let pk_len = private_key.len();
         let salt = rand::thread_rng().gen::<[u8; 32]>();
-        let mut iv = rand::thread_rng().gen::<[u8; 16]>();
+        let iv = rand::thread_rng().gen::<[u8; 16]>();
 
         let start = Instant::now();
 
@@ -137,11 +133,13 @@ impl KeyStore {
         println!("Benchmark 1 (Micros): {}", end.as_micros());
         println!("Benchmark 1 (Seconds): {}", end.as_secs());
 
-        hex::encode(serde_json::to_string(&keystore).unwrap())
+        let keystore_encode_str = hex::encode(serde_json::to_string(&keystore).unwrap());
+
+        keystore_encode_str.into_bytes()
     }
 
     #[allow(dead_code)]
-    fn load_keystore(keystore: &str, pass: &str) -> Result<String, HmacError> {
+    fn load_keystore(keystore: &[u8], pass: &str) -> Result<String, HmacError> {
         let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore_decode).unwrap();
 
@@ -212,7 +210,7 @@ mod tests {
 
         let hex_string = hex::decode("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").unwrap();
 
-        let (keystore, end) = KeyStore::create_keystore(&hex_string, "hello");
+        let keystore = KeyStore::create_keystore(&hex_string, "hello");
 
         let ending = start.elapsed();
 
@@ -230,7 +228,7 @@ mod tests {
         let p_key = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let (keystore, elapsed) = KeyStore::create_keystore(&hex_string, "hello");
+        let keystore = KeyStore::create_keystore(&hex_string, "hello");
 
         let keystore_2: String = KeyStore::load_keystore(&keystore, "hello").unwrap();
 
@@ -243,7 +241,7 @@ mod tests {
         let p_key = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let (keystore, elapsed) = KeyStore::create_keystore(&hex_string, "hello");
+        let keystore = KeyStore::create_keystore(&hex_string, "hello");
 
         let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore_decode).unwrap();
@@ -252,7 +250,7 @@ mod tests {
 
         keystore_serde.crypto.mac = format!("a0");
 
-        let keystore_guy = hex::encode(serde_json::to_string(&keystore_serde).unwrap());
+        let keystore_guy = hex::encode(serde_json::to_string(&keystore_serde).unwrap()).into_bytes();
 
         print_keystores(&keystore_guy);
 
@@ -267,7 +265,7 @@ mod tests {
     }
 
     #[cfg(test)]
-    fn print_keystores(keystore: &str) {
+    fn print_keystores(keystore: &[u8]) {
         let keystore_decoded = hex::decode(keystore).unwrap();
         let keystore_to_str = str::from_utf8(&keystore_decoded).unwrap();
 
