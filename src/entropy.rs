@@ -1,21 +1,9 @@
 use crate::bip39_words::BIP39_WORDS;
 use crate::legacy_words::LEGACY_WORDS;
-use bip39::Mnemonic as Bip39Mnemonic;
+use crate::mnemonic_error::MnemonicError;
 use num_bigint::ToBigInt;
 use rand::AsByteSliceMut;
 use sha2::{Digest, Sha256};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum EntropyError {
-    #[error("Word not found in word list: `{0}`")]
-    WordNotFound(String),
-
-    #[error("Checksum Mismatch")]
-    ChecksumMismatch,
-}
-
-// UTIL FUNCTIONS
 
 /// Returns a result as a Vec<u8>, and a u8 checksum
 ///
@@ -23,10 +11,10 @@ pub enum EntropyError {
 ///
 /// `words` - List of Mnemonic words.
 ///
-pub fn legacy_1(words: &Bip39Mnemonic) -> (Vec<u8>, u8) {
+pub fn legacy_1(words: Vec<String>) -> (Vec<u8>, u8) {
     let mut indices = words
-        .word_iter()
-        .filter_map(|word| LEGACY_WORDS.binary_search(&word).ok())
+        .iter()
+        .filter_map(|word| LEGACY_WORDS.binary_search(&&word[..]).ok())
         .collect::<Vec<usize>>();
 
     let legacy_length = LEGACY_WORDS.len() as u16;
@@ -80,17 +68,15 @@ pub fn convert_radix(nums: &[u8], from_radix: u16, to_radix: u16) -> Vec<u8> {
 ///
 /// `word_list` - List of strings.
 ///
-pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
-    let concat_bits_len = words.word_count() * 11;
+pub fn legacy_2(words: Vec<String>) -> Result<Vec<u8>, MnemonicError> {
+    let concat_bits_len = words.len() * 11;
 
-    let mut concat_bits = vec![false; words.word_count() * 11];
+    let mut concat_bits = vec![false; words.len() * 11];
 
-    let word_list = words.word_iter().collect::<Vec<&str>>();
-
-    for (word_index, word) in word_list.iter().enumerate() {
+    for (word_index, word) in words.iter().enumerate() {
         let index = BIP39_WORDS
             .binary_search(&&word.to_lowercase()[..])
-            .map_err(|_| EntropyError::WordNotFound(word.to_string()))?;
+            .map_err(|_| MnemonicError::WordNotFound(word.to_string()))?;
 
         for j in 0..11 {
             concat_bits[word_index * 11 + j] = index & (1 << (10 - j)) != 0;
@@ -114,7 +100,7 @@ pub fn legacy_2(words: &Bip39Mnemonic) -> Result<Vec<u8>, EntropyError> {
 
     for i in 0..check_sum_bits_len as usize {
         if concat_bits[entropy_bits_len as usize + i] != hash_bits[i] {
-            return Err(EntropyError::ChecksumMismatch);
+            return Err(MnemonicError::ChecksumMismatch);
         }
     }
     return Ok(entropy);
