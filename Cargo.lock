@@ -227,6 +227,7 @@ dependencies = [
  "aes",
  "anyhow",
  "bip39",
+ "cipher",
  "ctr",
  "ed25519-dalek",
  "hex",
