@@ -120,6 +120,10 @@ impl PrivateKey {
 
     pub fn is_derivable(&self) -> bool {
         self.chain_code != None
+    } 
+
+    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
+        Mnemonic::to_private_key(&mnemonic, passphrase)?
     }
 
     pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, MnemonicError> {
@@ -333,7 +337,7 @@ mod tests {
     fn test_derive() -> Result<(), KeyError> {
         let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
         let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
-        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "").unwrap();
+        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "");
         let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
 
         assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
