@@ -8,14 +8,15 @@ use std::str::FromStr;
 
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
-use rand::{thread_rng, Rng};
-use pem::parse;
 use openssl::rsa::Rsa;
-use openssl::symm::{Cipher};
+use openssl::symm::Cipher;
+use pem::parse;
+use rand::{thread_rng, Rng};
+use std::any::type_name;
 
-
-use crate::key_error::KeyError;
+use crate::{key_error::KeyError, mnemonic::MnemonicError};
 use crate::slip10::derive;
+use crate::mnemonic::Mnemonic;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
 const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());
@@ -90,17 +91,27 @@ impl PrivateKey {
         if self.chain_code == None {
             Err(KeyError::DeriveError(index))
         } else {
-            let (key_data, chain_code) = derive(&self.keypair.secret.to_bytes(), &self.chain_code.unwrap(), index);
+            let (key_data, chain_code) = derive(
+                &self.keypair.secret.to_bytes(),
+                &self.chain_code.unwrap(),
+                index,
+            );
 
             let key_pair = to_keypair(&key_data[..SECRET_KEY_LENGTH]);
 
-            Ok(Self{keypair: key_pair?, chain_code:Some(<[u8; 32]>::try_from(chain_code).unwrap())})
+            Ok(Self {
+                keypair: key_pair?,
+                chain_code: Some(<[u8; 32]>::try_from(chain_code).unwrap()),
+            })
         }
-    }   
-
+    }
 
     pub fn is_derivable(&self) -> bool {
         self.chain_code != None
+    } 
+
+    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
+        Mnemonic::to_private_key(&mnemonic, passphrase)?
     }
 
     //Decode private key from PEM string
@@ -115,7 +126,8 @@ impl PrivateKey {
     pub fn to_pem(passphrase: String) -> String {
         let key = Rsa::generate(2048).unwrap();
         let pem = key
-            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes()).unwrap();
+            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())
+            .unwrap();
 
         let s = str::from_utf8(&pem).unwrap();
 
@@ -125,8 +137,6 @@ impl PrivateKey {
     // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
     //     let load_keystore = keystore_bytes.load_keystore();
     // }
-
-
 
 }
 
@@ -170,12 +180,18 @@ mod tests {
     use ed25519_dalek::{Signature, Signer, SIGNATURE_LENGTH};
     use rand::{thread_rng, Rng};
     use std::str::FromStr;
+    use crate::Mnemonic;
 
     const PRIVATE_KEY_STR: &str = "302e020100300506032b6570042204204072d365d02199b5103336cf6a187578ffb6eba4ad6f8b2383c5cc54d00c4409";
     const PRIVATE_KEY_BYTES: &[u8] = &[
         64, 114, 211, 101, 208, 33, 153, 181, 16, 51, 54, 207, 106, 24, 117, 120, 255, 182, 235,
         164, 173, 111, 139, 35, 131, 197, 204, 84, 208, 12, 68, 9,
     ];
+    const IOS_MNEMONIC_WALLET: &str = 
+        "tiny denial casual grass skull spare awkward indoor ethics dash enough flavor good daughter early hard rug staff capable swallow raise flavor empty angle";
+
+    const IOS_WALLET_PRIV_KEY: &str = 
+        "5f66a51931e8c99089472e0d70516b6272b94dd772b967f8221e1077f966dbda2b60cf7ee8cf10ecd5a076bffad9a7c7b97df370ad758c0f1dd4ef738e04ceb6";
 
     #[test]
     fn test_generate() -> Result<(), KeyError> {
@@ -250,4 +266,20 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_derive() -> Result<(), KeyError> {
+        let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
+        let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
+        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "");
+        let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
+
+        assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
+        
+        Ok(())
+    }
+
+    // const iosMnemonic = await Mnemonic.fromString(iosWalletMnemonic);
+    // const iosKey = await PrivateKey.fromMnemonic(iosMnemonic, "");
+    // const iosChildKey = await iosKey.derive(0);
 }

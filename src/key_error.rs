@@ -7,10 +7,12 @@ pub enum KeyError {
     Hex(#[from] hex::FromHexError),
 
     #[error("this private key does not support key derivation")]
-    DeriveError(u32),  
+    DeriveError(u32),
 
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
+
+
 
     #[error(transparent)]
     Signature(#[from] SignatureError),
