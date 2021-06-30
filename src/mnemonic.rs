@@ -5,11 +5,13 @@ use crate::key_error::KeyError;
 use crate::legacy_words::LEGACY_WORDS;
 use crate::mnemonic_error::MnemonicError;
 use crate::private_key;
+use crate::private_key::to_keypair;
 use crate::slip10;
 use hmac::Hmac;
 use private_key::PrivateKey;
 use regex::Regex;
 use sha2::{Digest, Sha256, Sha512};
+use std::convert::TryInto;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str;
@@ -224,23 +226,26 @@ impl Mnemonic {
 
         let mut seed: [u8; 64] = [0; 64];
         pbkdf2::pbkdf2::<HmacSha512>(input.as_bytes(), salt.as_bytes(), 2048, &mut seed);
+        
         let digest = Sha512::digest(&seed);
         let key_data = &digest[0..32];
         let chain_code = &digest[32..];
 
-        // TODO: remove prints when done with testing
-        println!("Key Data: {:?}", key_data);
-        println!("Chain Code: {:?}", chain_code);
+        let mut data = (Vec::new(), Vec::new());
+        for _ in [44, 3030, 0, 0].iter() {
+            data = slip10::slip10_derive(key_data, chain_code);
+        }
 
+        let new_chain_code = data.1.clone().try_into().unwrap_or_else(|v: Vec<u8>| {
+            panic!("Expected a Vec of length {} but it was {}", 32, v.len())
+        });
 
-        let (new_key_data, new_chain_code) = slip10::slip10_derive(key_data, chain_code);
+        let keypair = to_keypair(&data.0).unwrap();
+        let private_key = PrivateKey {
+            keypair,
+            chain_code: Some(new_chain_code),
+        };
 
-        println!("{:?}, {:?}", new_key_data, new_chain_code);
-
-        // Placeholder Private Key
-        // TODO: Need integration with Private Key
-
-        let private_key  = PrivateKey::from_bytes(&new_key_data).unwrap();
         Ok(private_key)
     }
 
