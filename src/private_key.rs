@@ -1,4 +1,3 @@
-use crate::keystore;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::fmt;
@@ -7,7 +6,6 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::str;
 use std::str::FromStr;
-
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
@@ -225,4 +223,16 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_to_from_keystore() -> Result<(), KeyError> {
+        // let keystore = keystore::to_keystore(PRIVATE_KEY_BYTES, "pass");
+        // let private_key_bytes = keystore::from_keystore(&keystore, "pass").unwrap();
+        //
+        // assert_eq!(
+        //     private_key_bytes.to_bytes(),
+        //     PRIVATE_KEY_BYTES
+        // );
+
+        Ok(())
+    }
 }
