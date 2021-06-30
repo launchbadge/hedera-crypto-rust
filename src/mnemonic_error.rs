@@ -16,5 +16,4 @@ pub enum MnemonicError {
 
     #[error("word not found in word list: `{0}`")]
     WordNotFound(String),
-
 }

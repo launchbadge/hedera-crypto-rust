@@ -18,11 +18,11 @@ const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unw
 /// A private key on the Hedera™ Network
 #[derive(Debug)]
 pub struct PrivateKey {
-    keypair: Keypair,
-    chain_code: Option<[u8; 32]>,
+    pub(crate) keypair: Keypair,
+    pub(crate) chain_code: Option<[u8; 32]>,
 }
 
-fn to_keypair(entropy: &[u8]) -> Result<Keypair, KeyError> {
+pub(crate) fn to_keypair(entropy: &[u8]) -> Result<Keypair, KeyError> {
     let secret = SecretKey::from_bytes(&entropy[0..32]).map_err(KeyError::Signature)?;
 
     Ok(Keypair {
