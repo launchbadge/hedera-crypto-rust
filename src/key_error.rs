@@ -12,6 +12,8 @@ pub enum KeyError {
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
 
+
+
     #[error(transparent)]
     Signature(#[from] SignatureError),
 }

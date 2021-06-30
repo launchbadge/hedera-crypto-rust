@@ -108,6 +108,10 @@ impl PrivateKey {
 
     pub fn is_derivable(&self) -> bool {
         self.chain_code != None
+    } 
+
+    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
+        Mnemonic::to_private_key(&mnemonic, passphrase)?
     }
 
     pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, MnemonicError> {
@@ -130,7 +134,8 @@ impl PrivateKey {
     pub fn to_pem(passphrase: String) -> Result<String, KeyError> {
         let key = Rsa::generate(2048).unwrap();
         let pem = key
-            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes()).unwrap();
+            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())
+            .unwrap();
 
         let s = str::from_utf8(&pem).unwrap();
 
