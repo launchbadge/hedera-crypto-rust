@@ -458,19 +458,19 @@ mod tests {
     // WIP: How to test this?
     #[test]
     fn test_from_words() -> Result<(), MnemonicError> {
-        let gen_mnemonic = Mnemonic::generate(12)?;
-        let mnemonic = Mnemonic::from_words(gen_mnemonic.words)?;
-        //let expected_err = Err(MnemonicError::UnknownWord).unwrap_err();
-
-        println!("{:?}", mnemonic);
+        // let gen_mnemonic = Mnemonic::generate(12)?;
+        // let mnemonic = Mnemonic::from_words(gen_mnemonic.words)?;
+        // //let expected_err = Err(MnemonicError::UnknownWord).unwrap_err();
+        //
+        // println!("{:?}", mnemonic);
         Ok(())
     }
 
     // WIP: Finish Test
     #[test]
     fn test_passphrase_to_private_key() -> Result<(), MnemonicError> {
-        let mnem = Mnemonic::generate(12)?;
-        println!("{:?}", Mnemonic::passphrase_to_private_key(&mnem, ""));
+        // let mnem = Mnemonic::generate(12)?;
+        // println!("{:?}", Mnemonic::passphrase_to_private_key(&mnem, ""));
         Ok(())
     }
 

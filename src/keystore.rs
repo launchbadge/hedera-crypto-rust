@@ -9,7 +9,7 @@ use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
 use std::{fmt, str};
 
-use std::time::Instant;
+// use std::time::Instant;
 
 // Create alias for HMAC-SHA256
 #[allow(dead_code)]
@@ -69,7 +69,7 @@ struct KeyStore {
 }
 
 #[derive(Debug, Clone)]
-struct HmacError;
+pub struct HmacError;
 
 impl fmt::Display for HmacError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -88,12 +88,8 @@ impl KeyStore {
         let salt = rand::thread_rng().gen::<[u8; 32]>();
         let iv = rand::thread_rng().gen::<[u8; 16]>();
 
-        let start = Instant::now();
-
         // this line takes a hefty 5 seconds to run. yikes.
         pbkdf2::pbkdf2::<HmacSha256>(pass.as_bytes(), &salt, c_iter, &mut derived_key);
-
-        let end = start.elapsed();
 
         // AES-128-CTR with the first half of the derived key and a random IV
         let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv).unwrap();
@@ -132,18 +128,14 @@ impl KeyStore {
             },
         };
 
-        println!("Benchmark 1 (Micros): {}", end.as_micros());
-        println!("Benchmark 1 (Seconds): {}", end.as_secs());
-
-        let keystore_encode_str = hex::encode(serde_json::to_string(&keystore).unwrap());
+        let keystore_encode_str = serde_json::to_string(&keystore).unwrap();
 
         keystore_encode_str.into_bytes()
     }
 
     #[allow(dead_code)]
     fn load_keystore(keystore: &[u8], pass: &str) -> Result<Keypair, HmacError> {
-        let keystore_decode = hex::decode(&keystore).unwrap();
-        let keystore_str = str::from_utf8(&keystore_decode).unwrap();
+        let keystore_str = str::from_utf8(&keystore).unwrap();
 
         let keystore_serde: KeyStore = serde_json::from_str(&keystore_str).unwrap();
 
@@ -160,7 +152,6 @@ impl KeyStore {
             );
         }
 
-        let start = Instant::now();
         // derive key
         let mut derived_key: [u8; 32] = [0; 32];
         pbkdf2::pbkdf2::<HmacSha256>(
@@ -169,8 +160,6 @@ impl KeyStore {
             keystore_serde.crypto.kdf_params.c,
             &mut derived_key,
         );
-
-        let end = start.elapsed();
 
         // verify mac
         let mut key_buffer = hex::decode(&keystore_serde.crypto.ciphertext).unwrap();
@@ -191,10 +180,7 @@ impl KeyStore {
         cipher.seek(0);
         cipher.apply_keystream(&mut key_buffer);
 
-        println!("Benchmark 2 (Micros): {}", end.as_micros());
-        println!("Benchmark 2 (Seconds): {}", end.as_secs());
-
-        let secret_key = SecretKey::from_bytes(hex::encode(key_buffer).as_bytes()).unwrap();
+        let secret_key = SecretKey::from_bytes(&key_buffer).unwrap();
         let public_key = (&secret_key).into();
 
         Ok(Keypair {
@@ -205,38 +191,36 @@ impl KeyStore {
         //Ok(hex::encode(key_buffer))
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, HmacError> {
         let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
         Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
     }
 
+    #[allow(dead_code)]
     pub fn to_keystore(key: &[u8], pass: &str) -> Vec<u8> {
         KeyStore::create_keystore(key, pass)
     }
+
 }
+
 
 #[cfg(test)]
 mod tests {
     use crate::keystore::{HmacError, KeyStore};
     use ed25519_dalek::Keypair;
     use std::str;
+    use crate::private_key::PrivateKey;
 
     // for benchmarking only
-    use std::time::Instant;
+    // use std::time::Instant;
 
     #[test]
     fn create_keystore() {
-        let start = Instant::now();
+        //todo: test field names
+        let hex_string = hex::decode("db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").unwrap();
 
-        let hex_string = hex::decode("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").unwrap();
-
-        let keystore = KeyStore::create_keystore(&hex_string, "hello");
-
-        let ending = start.elapsed();
-
-        println!("Benchmark keystore (Micros): {}", ending.as_micros());
-        println!("Benchmark keystore (Seconds): {}", ending.as_secs());
+        let keystore = KeyStore::create_keystore(&hex_string, "pass");
 
         print_keystores(&keystore);
 
@@ -246,50 +230,88 @@ mod tests {
 
     #[test]
     fn load_keystore() {
-        let p_key = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
+        let p_key = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
         let keystore = KeyStore::create_keystore(&hex_string, "hello");
+        let keypair: Keypair = KeyStore::load_keystore(&keystore, "hello").unwrap();
 
-        let keystore_2: Keypair = KeyStore::load_keystore(&keystore, "hello").unwrap();
+        let keypair_bytes = keypair.secret.to_bytes().to_vec();
+        let keystore_2_str = hex::encode(keypair_bytes);
 
-        println!("Test load_keystore: ");
-        assert_eq!(keystore_2, p_key);
+        assert_eq!(p_key, keystore_2_str);
+    }
+
+    #[test]
+    fn to_from_keystore() {
+        let private_key = PrivateKey::generate();
+
+        let keystore = KeyStore::to_keystore(&private_key.to_bytes(), "pass1");
+        let p_key_pair = KeyStore::load_keystore(&keystore, "pass1").unwrap();
+
+        assert_eq!(private_key.to_bytes(), p_key_pair.secret.to_bytes());
+    }
+
+    #[test]
+    fn wrong_pass_keystore() {
+        let private_key = PrivateKey::generate();
+
+        let keystore = KeyStore::to_keystore(&private_key.to_bytes(), "pass1");
+        let p_key_pair = KeyStore::load_keystore(&keystore, "pass2");
+
+        let check_pass = match p_key_pair {
+            Ok(_) => false,
+            Err(_) => true,
+        };
+
+        assert!(check_pass);
     }
 
     #[test]
     fn test_hmac_verify() {
-        let p_key = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
+        let p_key = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
         let keystore = KeyStore::create_keystore(&hex_string, "hello");
 
-        let keystore_decode = hex::decode(&keystore).unwrap();
-        let keystore_str = str::from_utf8(&keystore_decode).unwrap();
+        // let keystore_decode = hex::decode(&keystore).unwrap();
+        let keystore_str = str::from_utf8(&keystore).unwrap();
 
         let mut keystore_serde: KeyStore = serde_json::from_str(&keystore_str).unwrap();
 
         keystore_serde.crypto.mac = format!("a0");
 
         let keystore_guy =
-            hex::encode(serde_json::to_string(&keystore_serde).unwrap()).into_bytes();
+            serde_json::to_string(&keystore_serde).unwrap().into_bytes();
 
         print_keystores(&keystore_guy);
 
         let keystore_2 = KeyStore::load_keystore(&keystore_guy, "hello");
 
         let check_hmac = match keystore_2 {
-            Ok(Keypair) => false,
-            Err(HmacError) => true,
+            Ok(_) => false,
+            Err(_) => true,
         };
 
         assert!(check_hmac);
     }
 
+    #[test]
+    fn js_keystore_to_pkey() {
+        let keystore_js = hex::decode("7b2276657273696f6e223a312c2263727970746f223a7b2263697068657274657874223a2264376462336136353836346538626261376630343734393764343134656662376361666162303763613434666165336138666266306365623433386238646366222c22636970686572706172616d73223a7b226976223a223930373034363435376230313164313838646233616266646536393463316162227d2c22636970686572223a224145532d3132382d435452222c226b6466223a2270626b646632222c226b6466706172616d73223a7b22646b4c656e223a33322c2273616c74223a2261316461633735366333356631643164626132323236636335383937643864636136333861323734326633393861613835623866376566386337396164376136222c2263223a3236323134342c22707266223a22686d61632d736861323536227d2c226d6163223a22393732646630623361636133333461333731663232653233353539616361366536613632313634633461373263353065346162643839666334346263306466633832356663326536636537636263633538313231356232356364333031393630227d7d").unwrap();
+        let p_key_js = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
+        let hex_string = hex::decode(p_key_js).unwrap();
+
+        let p_key = KeyStore::load_keystore(&keystore_js, "hello").unwrap();
+
+        assert_eq!(hex_string, p_key.secret.to_bytes());
+    }
+
+
     #[cfg(test)]
     fn print_keystores(keystore: &[u8]) {
-        let keystore_decoded = hex::decode(keystore).unwrap();
-        let keystore_to_str = str::from_utf8(&keystore_decoded).unwrap();
+        // let keystore_decoded = hex::decode(keystore).unwrap();
+        let keystore_to_str = str::from_utf8(&keystore).unwrap();
 
         println!("Rust Keystore: ");
         println!("{:?}", keystore_to_str);
