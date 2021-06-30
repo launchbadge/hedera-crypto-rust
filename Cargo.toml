@@ -26,6 +26,7 @@ libmath = "0.2.1"
 num-bigint = "0.4.0"
 itertools = "0.10.1"
 byteorder = "1.4.3"
+cipher = { version = "0.3.0", features = ["std"] }
 
 [dev-dependencies]
 anyhow = "1"
