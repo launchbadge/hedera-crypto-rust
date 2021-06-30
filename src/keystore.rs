@@ -1,21 +1,37 @@
 use crate::private_key::PrivateKey;
 use aes::Aes128Ctr;
-use ctr::cipher::{NewCipher, StreamCipher, StreamCipherSeek};
+use cipher::{NewCipher, StreamCipher, StreamCipherSeek, errors::InvalidLength};
 use ed25519_dalek::{Keypair, SecretKey};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
-use std::{fmt, str};
-
-// use std::time::Instant;
+use std::str;
+use thiserror::Error;
+use hex::FromHexError;
+use std::str::Utf8Error;
 
 // Create alias for HMAC-SHA256
 #[allow(dead_code)]
 type HmacSha384 = Hmac<Sha384>;
 #[allow(dead_code)]
 type HmacSha256 = Hmac<Sha256>;
+
+#[derive(Error, Debug)]
+pub enum KeyStoreError {
+    #[error("HMAC mismatch; passphrase is incorrect")]
+    HmacError,
+
+    #[error(transparent)]
+    Utf8Error(#[from] Utf8Error),
+
+    #[error("data store disconnected")]
+    FromHexError(#[from] FromHexError),
+
+    #[error("invalid error")]
+    InvalidLength(#[from] InvalidLength),
+}
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct KDFParams {
@@ -68,14 +84,14 @@ struct KeyStore {
     crypto: Crypto,
 }
 
-#[derive(Debug, Clone)]
-pub struct HmacError;
-
-impl fmt::Display for HmacError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HMAC mismatch; passphrase is incorrect")
-    }
-}
+// #[derive(Debug, Clone)]
+// pub struct HmacError;
+//
+// impl fmt::Display for HmacError {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(f, "HMAC mismatch; passphrase is incorrect")
+//     }
+// }
 
 // create keystore
 //      returns string that is a keystore
@@ -134,8 +150,8 @@ impl KeyStore {
     }
 
     #[allow(dead_code)]
-    fn load_keystore(keystore: &[u8], pass: &str) -> Result<Keypair, HmacError> {
-        let keystore_str = str::from_utf8(&keystore).unwrap();
+    fn load_keystore(keystore: &[u8], pass: &str) -> Result<Keypair, KeyStoreError> {
+        let keystore_str = str::from_utf8(&keystore)?;
 
         let keystore_serde: KeyStore = serde_json::from_str(&keystore_str).unwrap();
 
@@ -152,31 +168,33 @@ impl KeyStore {
             );
         }
 
+        let salt = hex::decode(keystore_serde.crypto.kdf_params.salt)?;
+
         // derive key
         let mut derived_key: [u8; 32] = [0; 32];
         pbkdf2::pbkdf2::<HmacSha256>(
             pass.as_bytes(),
-            &(hex::decode(keystore_serde.crypto.kdf_params.salt).unwrap()),
+            &(salt),
             keystore_serde.crypto.kdf_params.c,
             &mut derived_key,
         );
 
         // verify mac
-        let mut key_buffer = hex::decode(&keystore_serde.crypto.ciphertext).unwrap();
+        let mut key_buffer = hex::decode(&keystore_serde.crypto.ciphertext)?;
 
         let mut mac = HmacSha384::new_from_slice(&derived_key[16..derived_key.len()])
             .expect("HMAC can take key of any size");
         mac.update(&key_buffer);
 
-        let mac_decode = hex::decode(keystore_serde.crypto.mac).unwrap();
+        let mac_decode = hex::decode(keystore_serde.crypto.mac)?;
 
         // compare two vectors to verify hmac:
-        mac.verify(&mac_decode).map_err(|_| HmacError)?;
+        mac.verify(&mac_decode).map_err(|_| KeyStoreError::HmacError)?;
 
-        let iv_decode = hex::decode(keystore_serde.crypto.cipher_params.iv).unwrap();
+        let iv_decode = hex::decode(keystore_serde.crypto.cipher_params.iv)?;
 
         // decrypt the cipher
-        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv_decode).unwrap();
+        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv_decode)?;
         cipher.seek(0);
         cipher.apply_keystream(&mut key_buffer);
 
@@ -187,12 +205,10 @@ impl KeyStore {
             secret: secret_key,
             public: public_key,
         })
-
-        //Ok(hex::encode(key_buffer))
     }
 
     #[allow(dead_code)]
-    pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, HmacError> {
+    pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
         let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
         Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
     }
@@ -207,13 +223,10 @@ impl KeyStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::keystore::{HmacError, KeyStore};
+    use crate::keystore::{KeyStoreError, KeyStore};
     use ed25519_dalek::Keypair;
     use std::str;
     use crate::private_key::PrivateKey;
-
-    // for benchmarking only
-    // use std::time::Instant;
 
     #[test]
     fn create_keystore() {

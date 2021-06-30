@@ -25,6 +25,7 @@ regex = "1.5.4"
 libmath = "0.2.1"
 num-bigint = "0.4.0"
 itertools = "0.10.1"
+cipher = { version = "0.3.0", features = ["std"] }
 byteorder = "1.4.3"
 
 [dev-dependencies]
