@@ -1,7 +1,7 @@
 use crate::private_key::PrivateKey;
 use aes::Aes128Ctr;
 use cipher::{NewCipher, StreamCipher, StreamCipherSeek, errors::InvalidLength};
-use ed25519_dalek::{Keypair, SecretKey};
+use ed25519_dalek::{Keypair, SecretKey, SignatureError};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -26,11 +26,17 @@ pub enum KeyStoreError {
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
 
-    #[error("data store disconnected")]
+    #[error(transparent)]
     FromHexError(#[from] FromHexError),
 
-    #[error("invalid error")]
+    #[error(transparent)]
     InvalidLength(#[from] InvalidLength),
+
+    #[error(transparent)]
+    SignatureError(#[from] SignatureError),
+
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -84,20 +90,11 @@ struct KeyStore {
     crypto: Crypto,
 }
 
-// #[derive(Debug, Clone)]
-// pub struct HmacError;
-//
-// impl fmt::Display for HmacError {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "HMAC mismatch; passphrase is incorrect")
-//     }
-// }
-
 // create keystore
-//      returns string that is a keystore
+//      returns an array that has an encoded serde KeyStore struct
 impl KeyStore {
     #[allow(dead_code)]
-    fn create_keystore(private_key: &[u8], pass: &str) -> Vec<u8> {
+    fn create_keystore(private_key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
         let c_iter: u32 = 262144;
         let mut derived_key: [u8; 32] = [0; 32];
         let pk_len = private_key.len();
@@ -108,7 +105,7 @@ impl KeyStore {
         pbkdf2::pbkdf2::<HmacSha256>(pass.as_bytes(), &salt, c_iter, &mut derived_key);
 
         // AES-128-CTR with the first half of the derived key and a random IV
-        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv).unwrap();
+        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv)?;
         let mut buffer = vec![0u8; pk_len];
 
         // copy message to the buffer
@@ -144,9 +141,9 @@ impl KeyStore {
             },
         };
 
-        let keystore_encode_str = serde_json::to_string(&keystore).unwrap();
+        let keystore_encode_str = serde_json::to_string(&keystore)?;
 
-        keystore_encode_str.into_bytes()
+        Ok(keystore_encode_str.into_bytes())
     }
 
     #[allow(dead_code)]
@@ -198,7 +195,7 @@ impl KeyStore {
         cipher.seek(0);
         cipher.apply_keystream(&mut key_buffer);
 
-        let secret_key = SecretKey::from_bytes(&key_buffer).unwrap();
+        let secret_key = SecretKey::from_bytes(&key_buffer)?;
         let public_key = (&secret_key).into();
 
         Ok(Keypair {
@@ -207,46 +204,46 @@ impl KeyStore {
         })
     }
 
-    #[allow(dead_code)]
-    pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
-        let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
-        Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
-    }
+    // #[allow(dead_code)]
+    // pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
+    //     let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
+    //     Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
+    // }
+    //
+    // #[allow(dead_code)]
+    // pub fn to_keystore(key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
+    //     let keystore = KeyStore::create_keystore(key, pass)?;
+    //     Ok(keystore)
+    // }
+}
 
-    #[allow(dead_code)]
-    pub fn to_keystore(key: &[u8], pass: &str) -> Vec<u8> {
-        KeyStore::create_keystore(key, pass)
-    }
+#[allow(dead_code)]
+pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
+    let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
+    Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
+}
 
+#[allow(dead_code)]
+pub fn to_keystore(key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
+    let keystore = KeyStore::create_keystore(key, pass)?;
+    Ok(keystore)
 }
 
 
 #[cfg(test)]
 mod tests {
-    use crate::keystore::{KeyStoreError, KeyStore};
+    use crate::keystore::KeyStore;
     use ed25519_dalek::Keypair;
     use std::str;
     use crate::private_key::PrivateKey;
-
-    #[test]
-    fn create_keystore() {
-        //todo: test field names
-        let hex_string = hex::decode("db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10").unwrap();
-
-        let keystore = KeyStore::create_keystore(&hex_string, "pass");
-
-        print_keystores(&keystore);
-
-        println!("Test create keystore: ");
-        assert_eq!("302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10", "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10");
-    }
+    use crate::keystore;
 
     #[test]
     fn load_keystore() {
         let p_key = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let keystore = KeyStore::create_keystore(&hex_string, "hello");
+        let keystore = KeyStore::create_keystore(&hex_string, "hello").unwrap();
         let keypair: Keypair = KeyStore::load_keystore(&keystore, "hello").unwrap();
 
         let keypair_bytes = keypair.secret.to_bytes().to_vec();
@@ -259,18 +256,18 @@ mod tests {
     fn to_from_keystore() {
         let private_key = PrivateKey::generate();
 
-        let keystore = KeyStore::to_keystore(&private_key.to_bytes(), "pass1");
-        let p_key_pair = KeyStore::load_keystore(&keystore, "pass1").unwrap();
+        let keystore = keystore::to_keystore(&private_key.to_bytes(), "pass1").unwrap();
+        let p_key_pair = keystore::from_keystore(&keystore, "pass1").unwrap();
 
-        assert_eq!(private_key.to_bytes(), p_key_pair.secret.to_bytes());
+        assert_eq!(private_key.to_bytes(), p_key_pair.to_bytes());
     }
 
     #[test]
     fn wrong_pass_keystore() {
         let private_key = PrivateKey::generate();
 
-        let keystore = KeyStore::to_keystore(&private_key.to_bytes(), "pass1");
-        let p_key_pair = KeyStore::load_keystore(&keystore, "pass2");
+        let keystore = keystore::to_keystore(&private_key.to_bytes(), "pass1").unwrap();
+        let p_key_pair = keystore::from_keystore(&keystore, "pass2");
 
         let check_pass = match p_key_pair {
             Ok(_) => false,
@@ -285,7 +282,7 @@ mod tests {
         let p_key = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let keystore = KeyStore::create_keystore(&hex_string, "hello");
+        let keystore = KeyStore::create_keystore(&hex_string, "hello").unwrap();
 
         // let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore).unwrap();
@@ -315,9 +312,9 @@ mod tests {
         let p_key_js = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key_js).unwrap();
 
-        let p_key = KeyStore::load_keystore(&keystore_js, "hello").unwrap();
+        let p_key = keystore::from_keystore(&keystore_js, "hello").unwrap();
 
-        assert_eq!(hex_string, p_key.secret.to_bytes());
+        assert_eq!(hex_string, p_key.to_bytes());
     }
 
 
