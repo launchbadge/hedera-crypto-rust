@@ -80,6 +80,21 @@ impl PrivateKey {
     pub fn public_key(&self) -> crate::PublicKey {
         crate::PublicKey(self.keypair.public)
     }
+
+    pub fn legacy_derive(&self, index: i32) -> Self {
+        // check if chaincode exists
+        let chain_code = match self.chain_code {
+            Some(_) => self.chain_code,
+            None() => write!("this private key does not support key derivation"),
+        };
+
+        // define the input
+
+
+        //
+
+
+    }
 }
 
 impl Hash for PrivateKey {
@@ -115,6 +130,10 @@ impl FromStr for PrivateKey {
         Ok(PrivateKey::from_bytes(&hex::decode(&text)?)?)
     }
 }
+
+// todo: legacy derive
+// PrivateKey legacy_derive(index: i32) -> Self
+// if chaincode exists, it is derivatble
 
 #[cfg(test)]
 mod tests {
