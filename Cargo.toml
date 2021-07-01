@@ -28,6 +28,9 @@ libmath = "0.2.1"
 num-bigint = "0.4.0"
 itertools = "0.10.1"
 byteorder = "1.4.3"
+openssl = "0.10.35"
+pkcs8 = { version = "0.7.0", features = ["encryption", "pem"] }
+const_oid = "0.6.0"
 
 [dev-dependencies]
 anyhow = "1"

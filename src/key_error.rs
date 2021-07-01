@@ -1,5 +1,8 @@
 use ed25519_dalek::SignatureError;
 use thiserror::Error;
+use pkcs8::Error;
+use openssl::error::ErrorStack;
+
 
 #[derive(Debug, Error)]
 pub enum KeyError {
@@ -12,7 +15,8 @@ pub enum KeyError {
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
 
-
+    #[error(transparent)]
+    Pem(#[from] ErrorStack),
 
     #[error(transparent)]
     Signature(#[from] SignatureError),
