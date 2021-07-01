@@ -19,11 +19,28 @@ use std::str::FromStr;
 
 type HmacSha512 = Hmac<Sha512>;
 
-// Mnemonic phrase struct
 #[derive(Debug, Eq, PartialEq)]
 pub struct Mnemonic {
     words: Vec<String>,
     legacy: bool,
+}
+
+#[derive(Debug)]
+pub enum LegacyPrivateKeyError {
+    WordNotFound(MnemonicError),
+    Length(KeyError)
+}
+
+impl From<MnemonicError> for LegacyPrivateKeyError {
+    fn from(e: MnemonicError) -> Self {
+        LegacyPrivateKeyError::WordNotFound(e)
+    }
+}
+
+impl From<KeyError> for LegacyPrivateKeyError {
+    fn from(e: KeyError) -> Self {
+        LegacyPrivateKeyError::Length(e)
+    }
 }
 
 impl Mnemonic {
@@ -208,8 +225,7 @@ impl Mnemonic {
             legacy: self.legacy,
         })
     }
-    // WIP: Need Private Key Library to finish
-    // Note: needs different naming; js SDK has two toPrivateKey() functions.
+    // Note: might need different naming; js SDK has two toPrivateKey() functions.
     //       Not sure how to go about this
 
     /// Private function
@@ -226,7 +242,7 @@ impl Mnemonic {
 
         let mut seed: [u8; 64] = [0; 64];
         pbkdf2::pbkdf2::<HmacSha512>(input.as_bytes(), salt.as_bytes(), 2048, &mut seed);
-        
+
         let digest = Sha512::digest(&seed);
         let key_data = &digest[0..32];
         let chain_code = &digest[32..];
@@ -249,19 +265,17 @@ impl Mnemonic {
         Ok(private_key)
     }
 
-    // WIP: Unwraps to fix
-
     /// Returns a Private Key.
     ///
     /// # Arguments
     ///
     /// `&self` - Current instance of Mnemonic.
     //
-    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, MnemonicError> {
+    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, LegacyPrivateKeyError>{
         let index: i32 = if self.legacy { -1 } else { 0 };
 
         let seed: Vec<u8> = if self.legacy {
-            let result = entropy::legacy_1(self.words.clone()).0;
+            let result =  entropy::legacy_1(self.words.clone()).0;
             result
         } else {
             let result = entropy::legacy_2(self.words.clone())?;
@@ -269,8 +283,7 @@ impl Mnemonic {
         };
 
         let key_data = derive::legacy(&seed, index);
-        // Replace unwrap with something better, but what?
-        let private_key = PrivateKey::from_bytes(&key_data).unwrap();
+        let private_key = PrivateKey::from_bytes(&key_data)?;
 
         Ok(private_key)
     }
@@ -412,7 +425,7 @@ mod tests {
     }
 
     #[test]
-    fn test_to_legacy_private_key() -> Result<(), MnemonicError> {
+    fn test_to_legacy_private_key() -> Result<(), LegacyPrivateKeyError> {
         let mnemonic = Mnemonic::from_str(
             "combine quiz usual goddess topple bonus give drive target index love volcano",
         )
