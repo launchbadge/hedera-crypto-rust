@@ -121,6 +121,8 @@ mod tests {
     use ed25519_dalek::{Signature, Signer, SIGNATURE_LENGTH};
     use rand::{thread_rng, Rng};
     use std::str::FromStr;
+    use crate::keystore;
+    use crate::keystore::KeyStoreError;
 
     const PRIVATE_KEY_STR: &str = "302e020100300506032b6570042204204072d365d02199b5103336cf6a187578ffb6eba4ad6f8b2383c5cc54d00c4409";
     const PRIVATE_KEY_BYTES: &[u8] = &[
@@ -194,14 +196,14 @@ mod tests {
     }
 
     #[test]
-    fn test_to_from_keystore() -> Result<(), KeyError> {
-        // let keystore = keystore::to_keystore(PRIVATE_KEY_BYTES, "pass");
-        // let private_key_bytes = keystore::from_keystore(&keystore, "pass").unwrap();
-        //
-        // assert_eq!(
-        //     private_key_bytes.to_bytes(),
-        //     PRIVATE_KEY_BYTES
-        // );
+    fn test_to_from_keystore() -> Result<(), KeyStoreError> {
+        let keystore = keystore::to_keystore(PRIVATE_KEY_BYTES, "pass")?;
+        let private_key_bytes = keystore::from_keystore(&keystore, "pass").unwrap();
+
+        assert_eq!(
+            private_key_bytes.to_bytes(),
+            PRIVATE_KEY_BYTES
+        );
 
         Ok(())
     }
