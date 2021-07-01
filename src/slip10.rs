@@ -3,7 +3,6 @@ use sha2::{Digest, Sha512};
 
 type HmacSha512 = Hmac<Sha512>;
 
-// WIP: Not sure about this function
 pub fn slip10_derive(parent_key: &[u8], chain_code: &[u8]) -> (Vec<u8>, Vec<u8>) {
     let initial_input: Vec<u8> = vec![0];
 
