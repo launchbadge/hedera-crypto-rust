@@ -247,10 +247,7 @@ impl Mnemonic {
         let key_data = &digest[0..32];
         let chain_code = &digest[32..];
 
-        let mut data = (Vec::new(), Vec::new());
-        for _ in [44, 3030, 0, 0].iter() {
-            data = slip10::slip10_derive(key_data, chain_code);
-        }
+        let data = slip10::slip10_derive(key_data, chain_code);
 
         let new_chain_code = data.1.clone().try_into().unwrap_or_else(|v: Vec<u8>| {
             panic!("Expected a Vec of length {} but it was {}", 32, v.len())

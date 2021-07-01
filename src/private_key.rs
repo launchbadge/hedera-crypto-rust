@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
