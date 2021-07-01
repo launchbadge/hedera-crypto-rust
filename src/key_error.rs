@@ -14,7 +14,8 @@ pub enum KeyError {
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
 
-
+    // #[error("invalid private key length: {0} bytes")]
+    // Pem,
 
     #[error(transparent)]
     Pem(#[from] ErrorStack),

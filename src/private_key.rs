@@ -13,7 +13,7 @@ use openssl::rsa::Rsa;
 use openssl::symm::Cipher;
 use pem::parse;
 use rand::{thread_rng, Rng};
-use std::any::type_name;
+use pkcs8::{PrivateKeyDocument, EncryptedPrivateKeyDocument};
 
 use crate::Mnemonic;
 use crate::key_error::KeyError;
