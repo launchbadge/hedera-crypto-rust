@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
@@ -10,7 +11,9 @@ use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SI
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
 
+use crate::Mnemonic;
 use crate::key_error::KeyError;
+use crate::slip10;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
 const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());
@@ -79,6 +82,41 @@ impl PrivateKey {
     ///
     pub fn public_key(&self) -> crate::PublicKey {
         crate::PublicKey(self.keypair.public)
+    }
+
+    /// Derive a new private key at the given wallet index.
+    ///
+    /// Only currently supported for keys created with `fromMnemonic()`; other keys will throw
+    /// an error.
+    ///
+    /// Returns a Private Key
+    ///
+    pub fn derive(&self) -> Result<PrivateKey, KeyError> {
+
+        let chain_code = match self.chain_code {
+            None => return Err(KeyError::Derive),
+            Some(chain_code) => chain_code,
+        };
+
+        let key_data;
+
+        if self.chain_code == None {
+            return Err(KeyError::Derive);
+        } else {
+            key_data = slip10::slip10_derive(&self.to_bytes(), &chain_code);
+        }
+
+        let derive_chain_code = key_data.1.try_into().unwrap_or_else(|v: Vec<u8>| {
+            panic!("Expected a Vec of length {} but it was {}", 32, v.len())
+        });
+
+        let keypair = to_keypair(&key_data.0).unwrap();
+        let private_key = PrivateKey {
+            keypair,
+            chain_code: Some(derive_chain_code),
+        };
+
+        Ok(private_key)
     }
 }
 
@@ -191,6 +229,14 @@ mod tests {
 
         assert_eq!(PrivateKey::sign(&key, message), signature_bytes);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_derive() -> Result<(), KeyError>{
+        let private_key = PrivateKey::generate();
+        let derive_key = PrivateKey::derive(&private_key)?;
+        assert_eq!(derive_key.to_string().chars().count(), 96);
         Ok(())
     }
 }
