@@ -13,7 +13,7 @@ use openssl::{rsa::Rsa, pkey::PKey};
 use openssl::symm::{Cipher, encrypt};
 use rand::{thread_rng, Rng};
 use pkcs8::{PrivateKeyDocument, PrivateKeyInfo, EncryptedPrivateKeyDocument, AlgorithmIdentifier};
-use const_oid::ObjectIdentifier;
+// use const_oid::ObjectIdentifier;
 
 use crate::Mnemonic;
 use crate::key_error::KeyError;
@@ -120,14 +120,9 @@ impl PrivateKey {
 
     pub fn is_derivable(&self) -> bool {
         self.chain_code != None
-    } 
-
-    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
-        Mnemonic::to_private_key(&mnemonic, passphrase)?
     }
 
     pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, MnemonicError> {
-        println!("from mnemonic");
         Mnemonic::to_private_key(&mnemonic, passphrase)
     }
 
@@ -144,14 +139,14 @@ impl PrivateKey {
         }
     }
 
-    pub fn to_pem(&self, passphrase: &str) -> Result<Vec<u8>, KeyError> {
-        let priv_info = PrivateKeyInfo::new(,&Self::to_bytes(self));
-        if passphrase.len() > 0 {
-            Ok(key.private_key_to_pem_pkcs8_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())?)
-        } else {
-            Ok(key.private_key_to_pem_pkcs8()?)
-        }
-    }
+    // pub fn to_pem(&self, passphrase: &str) -> Result<Vec<u8>, KeyError> {
+    //     let priv_info = PrivateKeyInfo::new(,&Self::to_bytes(self));
+    //     if passphrase.len() > 0 {
+    //         Ok(key.private_key_to_pem_pkcs8_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())?)
+    //     } else {
+    //         Ok(key.private_key_to_pem_pkcs8()?)
+    //     }
+    // }
 
     // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
     //     let load_keystore = keystore_bytes.load_keystore();
@@ -326,6 +321,13 @@ mod tests {
         Ok(())
     }
 
+    // #[test]
+    // fn test_to_encrypted_pem() -> Result<(), KeyError> {
+    //     let pem: &[u8] = &PrivateKey::to_pem(PEM_PASSPHRASE)?;
+    //     let pkey = PKey::private_key_from_pem(pem)?;
+    //     Ok(())
+    // }
+
     #[test]
     fn test_to_encrypted_pem() -> Result<(), KeyError> {
         let pem: &[u8] = &PrivateKey::to_pem(PEM_PASSPHRASE)?;
@@ -337,7 +339,7 @@ mod tests {
     fn test_derive() -> Result<(), KeyError> {
         let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
         let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
-        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "");
+        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "").unwrap();
         let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
 
         assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
