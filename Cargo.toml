@@ -30,6 +30,7 @@ pem = "0.8.3"
 openssl = "0.10.35"
 itertools = "0.10.1"
 byteorder = "1.4.3"
+pkcs8 = { version = "0.7.0", features = ["encryption", "pem"] }
 
 [dev-dependencies]
 anyhow = "1"

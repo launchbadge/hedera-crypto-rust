@@ -12,7 +12,7 @@ use openssl::rsa::Rsa;
 use openssl::symm::Cipher;
 use pem::parse;
 use rand::{thread_rng, Rng};
-use std::any::type_name;
+use pkcs8::{PrivateKeyDocument, EncryptedPrivateKeyDocument};
 
 use crate::{key_error::KeyError, mnemonic::MnemonicError};
 use crate::slip10::derive;
@@ -108,30 +108,33 @@ impl PrivateKey {
 
     pub fn is_derivable(&self) -> bool {
         self.chain_code != None
-    } 
-
-    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
-        Mnemonic::to_private_key(&mnemonic, passphrase)?
     }
 
-    //Decode private key from PEM string
+    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, MnemonicError> {
+        println!("from mnemonic");
+        Mnemonic::to_private_key(&mnemonic, passphrase)
+    }
+
+    //Add file support for pem
     //
-    pub fn from_pem(data: String, _passphrase: String) -> Result<PrivateKey, KeyError> {
-        let bytes: Vec<u8> = data.as_bytes().to_vec();
-        let pem = parse(bytes).unwrap();
-
-        PrivateKey::from_bytes(&pem.contents)
+    pub fn from_pem(data: &str, passphrase: &str) -> Result<PrivateKey, KeyError> {
+        if passphrase.len() > 0 {
+            let private_doc = EncryptedPrivateKeyDocument::decrypt(&EncryptedPrivateKeyDocument::from_pem(&data)?, passphrase).unwrap();
+            PrivateKey::from_bytes(private_doc.as_ref())
+        } else {
+            let private_doc = PrivateKeyDocument::from_pem(&data).unwrap();
+            PrivateKey::from_bytes(private_doc.as_ref())
+        }
     }
 
-    pub fn to_pem(passphrase: String) -> String {
+    pub fn to_pem(passphrase: String) -> Result<String, KeyError> {
         let key = Rsa::generate(2048).unwrap();
         let pem = key
-            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())
-            .unwrap();
+            .private_key_to_pem_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes()).unwrap();
 
         let s = str::from_utf8(&pem).unwrap();
 
-        s.to_string()
+        Ok(s.to_string())
     }
 
     // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
@@ -259,10 +262,8 @@ mod tests {
     }
 
     #[test]
-    fn test_to_pem() -> Result<(), KeyError> {
-        let pem = PrivateKey::to_pem("asdf1234".to_string());
-
-        println!("Pem: {}", pem);
+    fn test_from_pem() -> Result<(), KeyError> {
+        let pem = PrivateKey::from_pem("asdf1234".to_string());
 
         Ok(())
     }
@@ -271,7 +272,11 @@ mod tests {
     fn test_derive() -> Result<(), KeyError> {
         let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
         let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
-        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "");
+        println!("ios mnemonic");
+
+        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "").unwrap();
+        println!("from mnemonic");
+
         let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
 
         assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
