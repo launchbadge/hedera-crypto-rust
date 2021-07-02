@@ -1,10 +1,10 @@
 use crate::key::Key;
 use crate::public_key::PublicKey;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::ops::{Deref, DerefMut};
 use std::iter::FromIterator;
-use itertools::Itertools;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Default)]
 pub struct KeyList {
@@ -21,7 +21,6 @@ impl From<Vec<Key>> for KeyList {
     }
 }
 
-// todo: fix this trait
 impl fmt::Display for KeyList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyList")
@@ -33,7 +32,6 @@ impl fmt::Display for KeyList {
 
 impl Deref for KeyList {
     type Target = Vec<Key>;
-
     fn deref(&self) -> &Self::Target {
         &self.keys
     }
@@ -46,13 +44,12 @@ impl DerefMut for KeyList {
 }
 
 impl<K: Into<Key>> FromIterator<K> for KeyList {
-    fn from_iter<I: IntoIterator<Item=K>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = K>>(iter: I) -> Self {
         let mut l = Self::new();
 
         for i in iter {
             l.push(i.into());
         }
-
         l
     }
 }
