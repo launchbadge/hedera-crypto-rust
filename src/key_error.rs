@@ -23,6 +23,4 @@ pub enum KeyError {
     #[error("legacy 22-word mnemonics do not support passphrases")]
     Passphrase,
 
-    #[error("this private key does not support key derivation")]
-    Derive,
 }
