@@ -1,7 +1,8 @@
-use crate::key_list::KeyList;
-use crate::public_key::PublicKey;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+
+use crate::key_list::KeyList;
+use crate::public_key::PublicKey;
 
 #[derive(Debug)]
 pub enum Key {

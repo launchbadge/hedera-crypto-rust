@@ -1,4 +1,6 @@
-use crate::private_key::PrivateKey;
+use std::borrow::Cow;
+use std::str;
+
 use aes::Aes128Ctr;
 use cipher::{NewCipher, StreamCipher, StreamCipherSeek};
 use ed25519_dalek::{Keypair, SecretKey};
@@ -6,10 +8,10 @@ use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::{Sha256, Sha384};
-use std::borrow::Cow;
-use std::str;
+
 #[allow(unused_imports)]
 use crate::keystore_error::KeyStoreError;
+use crate::private_key::PrivateKey;
 
 // Create alias for HMAC-SHA256
 #[allow(dead_code)]
@@ -176,10 +178,7 @@ impl KeyStore {
         let secret_key = SecretKey::from_bytes(&key_buffer)?;
         let public_key = (&secret_key).into();
 
-        Ok(Keypair {
-            secret: secret_key,
-            public: public_key,
-        })
+        Ok(Keypair { secret: secret_key, public: public_key })
     }
 }
 
@@ -195,14 +194,15 @@ pub fn to_keystore(key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
     Ok(keystore)
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::keystore::KeyStore;
-    use ed25519_dalek::Keypair;
     use std::str;
-    use crate::private_key::PrivateKey;
+
+    use ed25519_dalek::Keypair;
+
     use crate::keystore;
+    use crate::keystore::KeyStore;
+    use crate::private_key::PrivateKey;
 
     #[test]
     fn load_keystore() {
@@ -257,8 +257,7 @@ mod tests {
 
         keystore_serde.crypto.mac = format!("a0");
 
-        let keystore_guy =
-            serde_json::to_string(&keystore_serde).unwrap().into_bytes();
+        let keystore_guy = serde_json::to_string(&keystore_serde).unwrap().into_bytes();
 
         print_keystores(&keystore_guy);
 
@@ -282,7 +281,6 @@ mod tests {
 
         assert_eq!(hex_string, p_key.to_bytes());
     }
-
 
     #[cfg(test)]
     fn print_keystores(keystore: &[u8]) {

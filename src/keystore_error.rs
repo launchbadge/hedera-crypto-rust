@@ -1,9 +1,10 @@
-use cipher::errors::InvalidLength;
 use std::str::Utf8Error;
-use hex::FromHexError;
-use thiserror::Error;
+
+use cipher::errors::InvalidLength;
 use ed25519_dalek::SignatureError;
+use hex::FromHexError;
 use serde_json;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum KeyStoreError {

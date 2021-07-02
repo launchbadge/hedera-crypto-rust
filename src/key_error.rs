@@ -1,6 +1,8 @@
 use ed25519_dalek::SignatureError;
 use thiserror::Error;
 
+use crate::mnemonic_error::MnemonicError;
+
 #[derive(Debug, Error)]
 pub enum KeyError {
     #[error(transparent)]
@@ -17,4 +19,7 @@ pub enum KeyError {
 
     #[error("legacy 22-word mnemonics do not support passphrases")]
     PassphraseUnsupported,
+
+    #[error(transparent)]
+    Mnemonic(#[from] MnemonicError),
 }

@@ -4,15 +4,10 @@ use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::{fmt, str};
 
-use const_oid::ObjectIdentifier;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
-use openssl::error::ErrorStack;
-use openssl::pkey::PKey;
-use openssl::symm::{encrypt, Cipher};
-use pkcs8::der::Encodable;
-use pkcs8::{AlgorithmIdentifier, EncryptedPrivateKeyDocument, PrivateKeyDocument, PrivateKeyInfo};
-use rand::{thread_rng, CryptoRng, Rng};
+use pkcs8::{EncryptedPrivateKeyDocument, PrivateKeyDocument};
+use rand::{thread_rng, Rng};
 
 use crate::key_error::KeyError;
 use crate::mnemonic::Mnemonic;
@@ -78,18 +73,16 @@ impl PrivateKey {
     }
 
     pub fn derive(&self, index: u32) -> Result<Self, KeyError> {
-        if self.chain_code == None {
-            Err(KeyError::DeriveError(index))
+        if let Some(mut chain_code) = self.chain_code {
+            let mut key_data = self.to_bytes();
+
+            derive(&mut key_data, &mut chain_code, index);
+
+            let keypair = to_keypair(&key_data)?;
+
+            Ok(Self { keypair, chain_code: Some(chain_code) })
         } else {
-            let (key_data, chain_code) =
-                derive(&self.keypair.secret.to_bytes(), &self.chain_code.unwrap(), index);
-
-            let key_pair = to_keypair(&key_data[..SECRET_KEY_LENGTH]);
-
-            Ok(Self {
-                keypair: key_pair?,
-                chain_code: Some(<[u8; 32]>::try_from(chain_code).unwrap()),
-            })
+            Err(KeyError::DeriveError(index))
         }
     }
 
@@ -169,7 +162,6 @@ mod tests {
     use std::str::FromStr;
 
     use ed25519_dalek::{Signature, Signer, SIGNATURE_LENGTH};
-    use openssl::pkey::PKey;
     use rand::{thread_rng, Rng};
 
     use super::{KeyError, PrivateKey};

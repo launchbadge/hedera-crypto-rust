@@ -1,21 +1,30 @@
+use std::cell::RefCell;
+
 use byteorder::{BigEndian, ByteOrder};
-use sha2::{Digest, Sha384};
+use hmac::{Hmac, Mac, NewMac};
+use sha2::Sha512;
 
-type HmacSha384 = Hmac<Sha384>;
-use hmac::Hmac;
+pub fn derive(key_data: &mut [u8], chain_code: &mut [u8], index: u32) {
+    thread_local! {
+        static BUF: RefCell<[u8; 37]> = RefCell::new([0; 37]);
+    }
 
-pub fn derive(parent_key: &[u8], chain_code: &[u8], index: u32) -> (Vec<u8>, Vec<u8>) {
-    let mut input = Vec::new();
+    BUF.with(|buf| {
+        let mut buf = buf.borrow_mut();
 
-    input.push(0x00);
-    input.extend(parent_key);
-    BigEndian::write_u32(&mut input[33..], index);
+        buf[0] = 0;
+        buf[1..33].copy_from_slice(&key_data);
 
-    input[33] |= 128;
+        BigEndian::write_u32(&mut buf[33..], index);
 
-    pbkdf2::pbkdf2::<HmacSha384>(parent_key, chain_code, 1, &mut input);
+        buf[33] |= 128;
 
-    let digest = Sha384::digest(&input);
+        let mut mac = Hmac::<Sha512>::new_from_slice(chain_code).unwrap();
+        mac.update(&*buf);
 
-    ((&digest[0..32]).to_vec(), (&digest[32..]).to_vec())
+        let digest = mac.finalize().into_bytes();
+
+        key_data.copy_from_slice(&digest[0..32]);
+        chain_code.copy_from_slice(&digest[32..]);
+    });
 }

@@ -1,56 +1,37 @@
-use crate::bip39_words::BIP39_WORDS;
-use crate::derive;
-use crate::entropy;
-use crate::key_error::KeyError;
-use crate::legacy_words::LEGACY_WORDS;
-use crate::mnemonic_error::MnemonicError;
-use crate::private_key;
-use crate::private_key::to_keypair;
-use crate::slip10;
-use hmac::Hmac;
+use std::convert::TryInto;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use std::{fmt, str};
+
+use hmac::{Hmac, Mac, NewMac};
+use itertools::Itertools;
+use pbkdf2::pbkdf2;
 use private_key::PrivateKey;
 use regex::Regex;
 use sha2::{Digest, Sha256, Sha512};
-use std::convert::TryInto;
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use std::str;
-use std::str::FromStr;
 
-type HmacSha512 = Hmac<Sha512>;
+use crate::bip39_words::BIP39_WORDS;
+use crate::key_error::KeyError;
+use crate::legacy_words::LEGACY_WORDS;
+use crate::mnemonic_error::MnemonicError;
+use crate::private_key::to_keypair;
+use crate::{derive, entropy, private_key, slip10};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Mnemonic {
-    words: Vec<String>,
+    words: Box<[String]>,
     legacy: bool,
-}
-
-#[derive(Debug)]
-pub enum LegacyPrivateKeyError {
-    WordNotFound(MnemonicError),
-    Length(KeyError),
-}
-
-impl From<MnemonicError> for LegacyPrivateKeyError {
-    fn from(e: MnemonicError) -> Self {
-        LegacyPrivateKeyError::WordNotFound(e)
-    }
-}
-
-impl From<KeyError> for LegacyPrivateKeyError {
-    fn from(e: KeyError) -> Self {
-        LegacyPrivateKeyError::Length(e)
-    }
 }
 
 impl Mnemonic {
     /// Returns a new random 12 or 24 word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate(length: usize) -> Result<Mnemonic, MnemonicError> {
+    pub fn generate(length: usize) -> Result<Self, MnemonicError> {
         let needed_entropy: usize = match length {
             12 => 16,
             24 => 32,
+
             _ => return Err(MnemonicError::Length(length)),
         };
 
@@ -59,42 +40,30 @@ impl Mnemonic {
         let entropy_bits = bytes_to_binary(&seed);
         let check_sum_bits = derive_check_sum_bits(&seed);
         let bits = entropy_bits + &check_sum_bits;
+
+        // FIXME: Use <https://doc.rust-lang.org/stable/std/primitive.slice.html#method.chunks> instead of regex
         let re = Regex::new(r"(.{1,11})").unwrap();
 
-        let mut chunks: Vec<String> = Vec::new();
-        for cap in re.captures_iter(&bits) {
-            chunks.push((&cap[1]).to_string());
-        }
-
-        if !chunks.is_empty() {
-            chunks.clone()
-        } else {
-            Vec::new()
-        };
-
-        let words: Vec<String> = chunks
-            .iter()
-            .map(|binary| BIP39_WORDS[binary_to_byte(&binary.to_string()) as usize].to_string())
+        let words: Vec<_> = re
+            .captures_iter(&bits)
+            .map(|cap| BIP39_WORDS[binary_to_byte(&cap[1]) as usize].to_string())
             .collect();
 
-        Ok(Mnemonic {
-            words,
-            legacy: false,
-        })
+        Ok(Self { words: words.into_boxed_slice(), legacy: false })
     }
 
     /// Returns a new random 12-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_12() -> Result<Mnemonic, MnemonicError> {
-        return Mnemonic::generate(12);
+    pub fn generate_12() -> Result<Self, MnemonicError> {
+        Self::generate(12)
     }
 
     /// Returns a new random 24-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_24() -> Result<Mnemonic, MnemonicError> {
-        return Mnemonic::generate(24);
+    pub fn generate_24() -> Result<Self, MnemonicError> {
+        Self::generate(24)
     }
 
     // Construct a mnemonic from a list of words. Handles 12, 22 (legacy), and 24 words.
@@ -105,48 +74,35 @@ impl Mnemonic {
     // contain the failing mnemonic in case you wish to ignore the
     // validation error and continue.
     //
-    // Returns Mnemonic
-    //
-    // # Arguments
-    //
-    // * `words` - List of strings
-    //
-    pub fn from_words(words: Vec<String>) -> Result<Mnemonic, MnemonicError> {
-        let word_count = words.len();
-        let new_mnemonic = Mnemonic {
-            words,
-            legacy: word_count == 22,
-        };
+    pub fn from_words<I, T>(words: I) -> Result<Self, MnemonicError>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>,
+    {
+        let words =
+            words.into_iter().map(|word| word.into()).collect::<Vec<_>>().into_boxed_slice();
 
-        Ok(new_mnemonic.validate()?)
+        let word_count = words.len();
+        let new_mnemonic = Self { words, legacy: word_count == 22 };
+
+        new_mnemonic.validate()?;
+
+        Ok(new_mnemonic)
     }
 
     /// Recover a private key from this mnemonic phrase, with an optional passphrase.
     ///
-    /// Returns a Private Key.
-    ///
-    /// # Arguments
-    ///
-    /// `&self` - Instance of that current Mnemonic.
-    ///
-    /// `passphrase` - a string
-    ///
     pub fn to_private_key(&self, passphrase: &str) -> Result<PrivateKey, KeyError> {
         if self.legacy {
             if passphrase.len() > 0 {
-                return Err(KeyError::Passphrase);
+                return Err(KeyError::PassphraseUnsupported);
             }
         }
+
         Ok(self.passphrase_to_private_key(passphrase)?)
     }
 
-    /// Returns a Menmonic
-    ///
-    /// # Arguments
-    ///
-    /// `self` - Current instance of Mnemonic.
-    ///
-    fn validate(self) -> Result<Self, MnemonicError> {
+    fn validate(&self) -> Result<(), MnemonicError> {
         if self.legacy {
             if self.words.len() != 22 {
                 return Err(MnemonicError::Length(self.words.len()));
@@ -165,7 +121,7 @@ impl Mnemonic {
                 return Err(MnemonicError::UnknownWord);
             }
 
-            let (seed, checksum) = entropy::legacy_1(self.words.clone());
+            let (seed, checksum) = entropy::legacy_1(&*self.words);
             let new_check_sum = entropy::crc_8(&seed);
 
             if checksum != new_check_sum {
@@ -175,8 +131,6 @@ impl Mnemonic {
             if !(self.words.len() == 12 || self.words.len() == 24) {
                 return Err(MnemonicError::Length(self.words.len()));
             }
-
-            let word_list = self.words.iter().map(|x| &x[..]).collect::<Vec<&str>>();
 
             let unknown_word_indices = self
                 .words
@@ -193,9 +147,9 @@ impl Mnemonic {
 
             let mut bits = String::new();
 
-            for i in 0..word_list.len() {
+            for i in 0..self.words.len() {
                 for j in 0..BIP39_WORDS.len() {
-                    if word_list[i].to_lowercase() == BIP39_WORDS[j] {
+                    if self.words[i].to_lowercase() == BIP39_WORDS[j] {
                         let temp = format!("{}{:0>11}", bits, format!("{:b}", j));
                         bits = temp;
                     }
@@ -220,67 +174,48 @@ impl Mnemonic {
             }
         }
 
-        Ok(Mnemonic {
-            words: self.words,
-            legacy: self.legacy,
-        })
+        Ok(())
     }
-    // Note: might need different naming; js SDK has two toPrivateKey() functions.
-    //       Not sure how to go about this
 
-    /// Private function
-    ///
-    /// Returns a Private Key.
-    ///
-    /// # Arguments
-    ///
-    /// `passphrase` - string
-    ///
     fn passphrase_to_private_key(&self, passphrase: &str) -> Result<PrivateKey, KeyError> {
-        let input = format!("{}", self);
+        let input = self.to_string();
         let salt = format!("mnemonic{}", passphrase);
 
         let mut seed: [u8; 64] = [0; 64];
-        pbkdf2::pbkdf2::<HmacSha512>(input.as_bytes(), salt.as_bytes(), 2048, &mut seed);
+        pbkdf2::<Hmac<Sha512>>(input.as_bytes(), salt.as_bytes(), 2048, &mut seed);
 
-        let digest = Sha512::digest(&seed);
-        let key_data = &digest[0..32];
-        let chain_code = &digest[32..];
+        let mut mac = Hmac::<Sha512>::new_from_slice(&b"ed25519 seed"[..]).unwrap();
+        mac.update(&seed);
 
-        let mut data = (Vec::new(), Vec::new());
-        for index in [44, 3030, 0, 0].iter() {
-            data = slip10::derive(key_data, chain_code, *index);
+        let mut digest = mac.finalize().into_bytes();
+        let (key_data, chain_code) = digest.split_at_mut(32);
+
+        for index in [44, 3030, 0, 0] {
+            slip10::derive(key_data, chain_code, index);
         }
 
-        let new_chain_code = data.1.try_into().unwrap_or_else(|v: Vec<u8>| {
-            panic!("Expected a Vec of length {} but it was {}", 32, v.len())
-        });
+        let keypair = to_keypair(&key_data).unwrap();
 
-        let keypair = to_keypair(&data.0).unwrap();
-        let private_key = PrivateKey {
-            keypair,
-            chain_code: Some(new_chain_code),
-        };
+        // UNWRAP: chain code is guaranteed to be 32 bytes
+        let private_key =
+            PrivateKey { keypair, chain_code: Some(chain_code.as_ref().try_into().unwrap()) };
 
         Ok(private_key)
     }
 
-    /// Returns a Private Key.
+    /// Returns a Private Key through legacy mnemonic deriviation.
     ///
-    /// # Arguments
-    ///
-    /// `&self` - Current instance of Mnemonic.
-    //
-    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, LegacyPrivateKeyError> {
+    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, KeyError> {
         let index: i32 = if self.legacy { -1 } else { 0 };
 
-        let seed: Vec<u8> = if self.legacy {
-            let result = entropy::legacy_1(self.words.clone()).0;
-            result
+        // FIXME: legacy functions should work with and produce arrays
+        let seed: [u8; 32] = if self.legacy {
+            entropy::legacy_1(&*self.words).0
         } else {
-            let result = entropy::legacy_2(self.words.clone())?;
-            result
-        };
+            entropy::legacy_2(&*self.words)?
+        }
+        .try_into()
+        .unwrap();
 
         let key_data = derive::legacy(&seed, index);
         let private_key = PrivateKey::from_bytes(&key_data)?;
@@ -293,66 +228,31 @@ impl FromStr for Mnemonic {
     type Err = MnemonicError;
 
     fn from_str(mnemonic: &str) -> Result<Self, MnemonicError> {
-        let mnem = mnemonic.split(" ");
-        let mnem_word_list = mnem.collect::<Vec<&str>>();
-        let words: Vec<String> = mnem_word_list.iter().map(|s| s.to_string()).collect();
-
-        Ok(Mnemonic {
-            words,
-            legacy: false,
-        })
+        Self::from_words(mnemonic.split(&[',', ' '][..]))
     }
 }
 
 impl Display for Mnemonic {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let mut comma_separated = String::new();
-
-        for i in &self.words[0..self.words.len() - 1] {
-            comma_separated.push_str(&i.to_string());
-            comma_separated.push_str(", ");
-        }
-
-        comma_separated.push_str(&self.words[self.words.len() - 1].to_string());
-        write!(f, "{}", comma_separated)
+        write!(f, "{}", self.words.iter().format(" "))
     }
 }
 
-/// Returns a u8
-///
-/// # Arguments
-///
-/// `bin` - string
-///
-pub fn binary_to_byte(bin: &str) -> i32 {
+fn binary_to_byte(bin: &str) -> i32 {
     let binary_to_byte = i32::from_str_radix(bin, 2).unwrap();
     return binary_to_byte;
 }
 
-/// Returns a string
-///
-/// # Arguments
-///
-/// `bytes` - A list of numners.
-///
-pub fn bytes_to_binary(bytes: &[u8]) -> String {
-    let bytes_to_binary: String = bytes
-        .iter()
-        .map(|x| format!("{:0>8}", format!("{:b}", x)))
-        .collect();
+fn bytes_to_binary(bytes: &[u8]) -> String {
+    let bytes_to_binary: String =
+        bytes.iter().map(|x| format!("{:0>8}", format!("{:b}", x))).collect();
 
     let pad_string = format!("{:0>8}", bytes_to_binary);
 
     return pad_string;
 }
 
-/// Returns a string.
-///
-/// # Arguments
-///
-/// `entropy_buffer` - Slice of u8 numbers.
-///
-pub fn derive_check_sum_bits(entropy_buffer: &[u8]) -> String {
+fn derive_check_sum_bits(entropy_buffer: &[u8]) -> String {
     let ent = entropy_buffer.len() * 8;
     let cs = ent / 32;
 

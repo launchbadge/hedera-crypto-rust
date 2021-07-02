@@ -1,14 +1,14 @@
-use crate::key_error::KeyError;
+use std::convert::TryFrom;
+use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+use std::{fmt, str};
+
 use ed25519_dalek::{Signature, Verifier};
 use hex;
 use once_cell::sync::Lazy;
-use std::convert::TryFrom;
-use std::fmt;
-use std::fmt::{Display, Formatter};
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::str;
-use std::str::FromStr;
+
+use crate::key_error::KeyError;
 
 const DER_PREFIX: &str = "302a300506032b6570032100";
 const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());

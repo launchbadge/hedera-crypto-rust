@@ -1,8 +1,10 @@
-use crate::key::Key;
-use itertools::Itertools;
 use std::fmt;
 use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
+
+use itertools::Itertools;
+
+use crate::key::Key;
 
 #[derive(Debug, Default)]
 pub struct KeyList {
@@ -12,10 +14,7 @@ pub struct KeyList {
 
 impl From<Vec<Key>> for KeyList {
     fn from(keys: Vec<Key>) -> Self {
-        KeyList {
-            keys,
-            threshold: None,
-        }
+        KeyList { keys, threshold: None }
     }
 }
 
@@ -62,10 +61,9 @@ impl KeyList {
 
 #[cfg(test)]
 mod tests {
+    use super::KeyList;
     use crate::key::Key;
     use crate::public_key::PublicKey;
-
-    use super::KeyList;
 
     const PUBLIC_KEY_BYTES: &[u8] = &[
         215, 90, 152, 1, 130, 177, 10, 183, 213, 75, 254, 211, 201, 100, 7, 58, 14, 225, 114, 243,
@@ -76,10 +74,7 @@ mod tests {
     fn create_key_list_threshold() {
         let key_vec = gen_key_vec();
 
-        let mut key_list = KeyList {
-            keys: key_vec,
-            threshold: Some(3),
-        };
+        let mut key_list = KeyList { keys: key_vec, threshold: Some(3) };
 
         key_list.threshold = Some(5);
 
@@ -89,10 +84,7 @@ mod tests {
     #[test]
     fn test_push() {
         let key_vec = gen_key_vec();
-        let mut key_list = KeyList {
-            keys: key_vec,
-            threshold: Some(3),
-        };
+        let mut key_list = KeyList { keys: key_vec, threshold: Some(3) };
 
         let public_key_3 = PublicKey::from_bytes(PUBLIC_KEY_BYTES).unwrap();
 

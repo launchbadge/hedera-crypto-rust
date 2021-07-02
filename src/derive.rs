@@ -1,33 +1,38 @@
+use std::cell::RefCell;
+
 use hmac::Hmac;
-use pbkdf2;
+use pbkdf2::pbkdf2;
 use sha2::Sha512;
 
-type HmacSha512 = Hmac<Sha512>;
+pub(crate) fn legacy(seed: &[u8; 32], index: i32) -> [u8; 32] {
+    const SALT: [u8; 1] = [0xff];
 
-/// Returns u8 Vector
-///
-/// # Arguments
-///
-/// `seed` - u8 vector
-///
-/// `index` - i32 integer
-///
-pub fn legacy(seed: &[u8], index: i32) -> Vec<u8> {
-    let salt = [0xff];
-    let mut buf = Vec::with_capacity(seed.len() + 8);
-    buf.extend_from_slice(&seed);
-    buf.extend_from_slice(&index.to_be_bytes());
+    thread_local! {
+        static BUF: RefCell<[u8; 40]> = RefCell::new([0; 40]);
+    }
 
-    let mut derived_key: [u8; 32] = [0; 32];
-    pbkdf2::pbkdf2::<HmacSha512>(&buf, &salt, 2048, &mut derived_key);
-    return derived_key.to_vec();
+    BUF.with(|buf| {
+        let mut buf = buf.borrow_mut();
+
+        buf.copy_from_slice(&seed[..]);
+
+        // FIXME: when legacy derive is fully fixed this code should be re-ported
+        buf[32..].copy_from_slice(&index.to_be_bytes());
+        buf[36..].copy_from_slice(&index.to_be_bytes());
+
+        let mut derived_key: [u8; 32] = [0; 32];
+
+        pbkdf2::<Hmac<Sha512>>(&*buf, &SALT, 2048, &mut derived_key);
+
+        derived_key
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const TEST_SEED: &[u8] = &[
+    const TEST_SEED: &[u8; 32] = &[
         157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068, 073,
         197, 105, 123, 050, 105, 025, 112, 059, 172, 003, 028, 174, 127, 096,
     ];

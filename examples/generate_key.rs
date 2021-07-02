@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use hedera_crypto::{Mnemonic, PrivateKey};
+use hedera_crypto::Mnemonic;
 
 fn main() -> anyhow::Result<()> {
     // generate a 24-word mnemonic
@@ -13,22 +13,21 @@ fn main() -> anyhow::Result<()> {
 
     // derive index #0
     // WARN: don't hand out your root key
-    let key = PrivateKey::derive(&root_key, 0)?;
+    let key = root_key.derive(0)?;
 
-    println!("private key = {}", root_key);
-    println!("public key = {}", root_key.public_key());
+    println!("private key = {}", key);
+    println!("public key = {}", key.public_key());
 
-    let recovered_mnemonic = Mnemonic::from_str(&format!("{}", mnemonic))?;
-    let recovered_root_key = Mnemonic::to_private_key(&recovered_mnemonic, "")?;
-    let recovered_key = PrivateKey::derive(&recovered_root_key, 0)?;
+    // [...]
 
     // recover your key from the mnemonic
     // this takes space-separated or comma-separated words
-    if recovered_key.to_string() == key.to_string() {
-        println!("Pass")
-    } else {
-        println!("Fail")
-    }
+
+    let recovered_mnemonic = Mnemonic::from_str(&mnemonic.to_string())?;
+    let recovered_root_key = recovered_mnemonic.to_private_key("")?;
+    let recovered_key = recovered_root_key.derive(0)?;
+
+    assert_eq!(recovered_key, key);
 
     Ok(())
 }
