@@ -16,8 +16,5 @@ pub enum KeyError {
     Signature(#[from] SignatureError),
 
     #[error("legacy 22-word mnemonics do not support passphrases")]
-    Passphrase,
-
-    #[error(transparent)]
-    Signature(#[from] SignatureError),    
+    PassphraseUnsupported,
 }
