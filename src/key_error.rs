@@ -1,8 +1,7 @@
 use ed25519_dalek::SignatureError;
-use thiserror::Error;
-use pkcs8::Error;
 use openssl::error::ErrorStack;
-
+use pkcs8::Error;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum KeyError {
