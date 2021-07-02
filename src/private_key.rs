@@ -6,7 +6,6 @@ use std::hash::Hasher;
 use std::str;
 use std::str::FromStr;
 
-use const_oid::ObjectIdentifier;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
 use openssl::symm::{encrypt, Cipher};
