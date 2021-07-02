@@ -2,6 +2,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum MnemonicError {
+    // TODO: Add (Mnemonic) to ChecksumMismatch
     #[error("the mnemonic has an invalid checksum.")]
     ChecksumMismatch,
 

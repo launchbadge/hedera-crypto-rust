@@ -13,7 +13,9 @@ mod private_key;
 mod public_key;
 mod slip10;
 
+pub use key::Key;
 pub use key_error::KeyError;
+pub use key_list::KeyList;
 pub use keystore_error::KeystoreError;
 pub use mnemonic::Mnemonic;
 pub use mnemonic_error::MnemonicError;
