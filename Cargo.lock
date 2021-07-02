@@ -257,6 +257,7 @@ dependencies = [
  "aes",
  "anyhow",
  "byteorder",
+ "const-oid",
  "ctr",
  "ed25519-dalek",
  "hex",

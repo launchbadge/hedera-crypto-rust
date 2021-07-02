@@ -9,14 +9,16 @@ use std::str::FromStr;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
 use openssl::pkey::PKey;
-use openssl::symm::{Cipher, encrypt};
+use openssl::symm::{encrypt, Cipher};
+use pkcs8::der::Encodable;
+use pkcs8::{AlgorithmIdentifier, EncryptedPrivateKeyDocument, PrivateKeyDocument, PrivateKeyInfo};
+use rand::CryptoRng;
 use rand::{thread_rng, Rng};
-use pkcs8::{PrivateKeyDocument, PrivateKeyInfo, EncryptedPrivateKeyDocument, AlgorithmIdentifier};
-// use const_oid::ObjectIdentifier;
+use const_oid::ObjectIdentifier;
 
-use crate::{key_error::KeyError};
-use crate::slip10::derive;
+use crate::key_error::KeyError;
 use crate::mnemonic::Mnemonic;
+use crate::slip10::derive;
 use openssl::error::ErrorStack;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
@@ -130,18 +132,18 @@ impl PrivateKey {
     }
 
     // pub fn to_pem(&self, passphrase: &str) -> Result<Vec<u8>, KeyError> {
-    //     let priv_info = PrivateKeyInfo::new(,&Self::to_bytes(self));
+    //     let priv_info = PrivateKeyInfo::new(AlgorithmIdentifier {oid: ObjectIdentifier::new("1.2.840.113549.1.1.1"), parameters: None},&Self::to_bytes(self));
     //     if passphrase.len() > 0 {
-    //         Ok(key.private_key_to_pem_pkcs8_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())?)
+    //         priv_info.encrypt(, passphrase.as_bytes());
+    //         Ok(priv_info.private_key_to_pem_pkcs8_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())?)
     //     } else {
-    //         Ok(key.private_key_to_pem_pkcs8()?)
+    //         Ok(priv_info.to_pem())
     //     }
     // }
 
     // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
     //     let load_keystore = keystore_bytes.load_keystore();
     // }
-
 }
 
 impl Hash for PrivateKey {
@@ -174,62 +176,29 @@ impl FromStr for PrivateKey {
     type Err = KeyError;
 
     fn from_str(text: &str) -> Result<Self, KeyError> {
-        Ok(PrivateKey::from_bytes(&hex::decode(&text)?)?)
+        Ok(PrivateKey::from_bytes(&hex::decode(&text).unwrap())?)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{KeyError, PrivateKey};
+    use crate::Mnemonic;
     use ed25519_dalek::{Signature, Signer, SIGNATURE_LENGTH};
+    use openssl::pkey::PKey;
     use rand::{thread_rng, Rng};
     use std::str::FromStr;
-    use crate::Mnemonic;
-    use openssl::pkey::PKey;
 
     const PRIVATE_KEY_STR: &str = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
     const PRIVATE_KEY_BYTES: &[u8] = &[
-        37,
-        72,
-        75,
-        126,
-        114,
-        100,
-        78,
-        40,
-        15,
-        44,
-        29,
-        64,
-        96,
-        23,
-        58,
-        11,
-        116,
-        50,
-        122,
-        15,
-        69,
-        113,
-        57,
-        55,
-        119,
-        50,
-        57,
-        68,
-        126,
-        83,
-        114,
-        16
+        37, 72, 75, 126, 114, 100, 78, 40, 15, 44, 29, 64, 96, 23, 58, 11, 116, 50, 122, 15, 69,
+        113, 57, 55, 119, 50, 57, 68, 126, 83, 114, 16,
     ];
-    const IOS_MNEMONIC_WALLET: &str = 
-        "tiny denial casual grass skull spare awkward indoor ethics dash enough flavor good daughter early hard rug staff capable swallow raise flavor empty angle";
+    const IOS_MNEMONIC_WALLET: &str = "tiny denial casual grass skull spare awkward indoor ethics dash enough flavor good daughter early hard rug staff capable swallow raise flavor empty angle";
 
-    const IOS_WALLET_PRIV_KEY: &str = 
-        "5f66a51931e8c99089472e0d70516b6272b94dd772b967f8221e1077f966dbda2b60cf7ee8cf10ecd5a076bffad9a7c7b97df370ad758c0f1dd4ef738e04ceb6";
+    const IOS_WALLET_PRIV_KEY: &str = "5f66a51931e8c99089472e0d70516b6272b94dd772b967f8221e1077f966dbda2b60cf7ee8cf10ecd5a076bffad9a7c7b97df370ad758c0f1dd4ef738e04ceb6";
 
-    const ENCRYPTED_PEM: &str =
-        "-----BEGIN ENCRYPTED PRIVATE KEY-----\n
+    const ENCRYPTED_PEM: &str = "-----BEGIN ENCRYPTED PRIVATE KEY-----\n
             MIGbMFcGCSqGSIb3DQEFDTBKMCkGCSqGSIb3DQEFDDAcBAi8WY7Gy2tThQICCAAw
             DAYIKoZIhvcNAgkFADAdBglghkgBZQMEAQIEEOq46NPss58chbjUn20NoK0EQG1x
             R88hIXcWDOECttPTNlMXWJt7Wufm1YwBibrxmCq1QykIyTYhy1TZMyxyPxlYW6aV
@@ -322,11 +291,12 @@ mod tests {
     fn test_derive() -> Result<(), KeyError> {
         let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
         let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
+        println!("yes");
         let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "").unwrap();
         let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
 
         assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
-        
+
         Ok(())
     }
 

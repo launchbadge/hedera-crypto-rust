@@ -28,7 +28,7 @@ pub struct Mnemonic {
 #[derive(Debug)]
 pub enum LegacyPrivateKeyError {
     WordNotFound(MnemonicError),
-    Length(KeyError)
+    Length(KeyError),
 }
 
 impl From<MnemonicError> for LegacyPrivateKeyError {
@@ -247,7 +247,7 @@ impl Mnemonic {
         let key_data = &digest[0..32];
         let chain_code = &digest[32..];
 
-        let mut data  = (Vec::new(), Vec::new());
+        let mut data = (Vec::new(), Vec::new());
         for index in [44, 3030, 0, 0].iter() {
             data = slip10::derive(key_data, chain_code, *index);
         }
@@ -271,11 +271,11 @@ impl Mnemonic {
     ///
     /// `&self` - Current instance of Mnemonic.
     //
-    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, LegacyPrivateKeyError>{
+    pub fn to_legacy_private_key(&self) -> Result<PrivateKey, LegacyPrivateKeyError> {
         let index: i32 = if self.legacy { -1 } else { 0 };
 
         let seed: Vec<u8> = if self.legacy {
-            let result =  entropy::legacy_1(self.words.clone()).0;
+            let result = entropy::legacy_1(self.words.clone()).0;
             result
         } else {
             let result = entropy::legacy_2(self.words.clone())?;
