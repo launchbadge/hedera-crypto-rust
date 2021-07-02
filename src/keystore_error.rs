@@ -16,8 +16,8 @@ pub enum KeystoreError {
     #[error("HMAC mismatch; passphrase is incorrect")]
     HmacMismatch(#[from] MacError),
 
-    #[error(transparent)]
-    InvalidLength(#[from] InvalidLength),
+    #[error("invalid length of IV")]
+    InvalidIvLength(#[from] InvalidLength),
 
     #[error(transparent)]
     Json(#[from] serde_json::Error),
