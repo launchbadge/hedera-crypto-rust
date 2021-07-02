@@ -181,18 +181,6 @@ impl KeyStore {
             public: public_key,
         })
     }
-
-    // #[allow(dead_code)]
-    // pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
-    //     let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
-    //     Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
-    // }
-    //
-    // #[allow(dead_code)]
-    // pub fn to_keystore(key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
-    //     let keystore = KeyStore::create_keystore(key, pass)?;
-    //     Ok(keystore)
-    // }
 }
 
 #[allow(dead_code)]
@@ -215,7 +203,6 @@ mod tests {
     use std::str;
     use crate::private_key::PrivateKey;
     use crate::keystore;
-    use crate::keystore_error::KeyStoreError;
 
     #[test]
     fn load_keystore() {
