@@ -1,5 +1,4 @@
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
@@ -9,11 +8,16 @@ use std::str::FromStr;
 
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SIGNATURE_LENGTH};
 use once_cell::sync::Lazy;
+use openssl::pkey::PKey;
+use openssl::symm::{Cipher, encrypt};
 use rand::{thread_rng, Rng};
+use pkcs8::{PrivateKeyDocument, PrivateKeyInfo, EncryptedPrivateKeyDocument, AlgorithmIdentifier};
+// use const_oid::ObjectIdentifier;
 
-use crate::Mnemonic;
-use crate::key_error::KeyError;
+use crate::{key_error::KeyError};
 use crate::slip10::derive;
+use crate::mnemonic::Mnemonic;
+use openssl::error::ErrorStack;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
 const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());
@@ -25,7 +29,7 @@ pub struct PrivateKey {
     pub(crate) chain_code: Option<[u8; 32]>,
 }
 
-pub(crate) fn to_keypair(entropy: &[u8]) -> Result<Keypair, KeyError> {
+pub fn to_keypair(entropy: &[u8]) -> Result<Keypair, KeyError> {
     let secret = SecretKey::from_bytes(&entropy[0..32]).map_err(KeyError::Signature)?;
 
     Ok(Keypair {
@@ -84,13 +88,6 @@ impl PrivateKey {
         crate::PublicKey(self.keypair.public)
     }
 
-    /// Derive a new private key at the given wallet index.
-    ///
-    /// Only currently supported for keys created with `fromMnemonic()`; other keys will throw
-    /// an error.
-    ///
-    /// Returns a Private Key
-    ///
     pub fn derive(&self, index: u32) -> Result<Self, KeyError> {
         if self.chain_code == None {
             Err(KeyError::DeriveError(index))
@@ -109,7 +106,42 @@ impl PrivateKey {
             })
         }
     }
-        
+
+    pub fn is_derivable(&self) -> bool {
+        self.chain_code != None
+    }
+
+    pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
+        println!("from mnemonic");
+        Mnemonic::to_private_key(&mnemonic, passphrase)
+    }
+
+    //Add file support for pem
+    //
+    pub fn from_pem(data: &str, passphrase: &str) -> Result<PrivateKey, KeyError> {
+        if passphrase.len() > 0 {
+            let meh = EncryptedPrivateKeyDocument::from_pem(&data).unwrap();
+            let private_doc = EncryptedPrivateKeyDocument::decrypt(&meh, passphrase).unwrap();
+            Self::from_bytes(private_doc.as_ref())
+        } else {
+            let private_doc = PrivateKeyDocument::from_pem(&data).unwrap();
+            Self::from_bytes(private_doc.as_ref())
+        }
+    }
+
+    // pub fn to_pem(&self, passphrase: &str) -> Result<Vec<u8>, KeyError> {
+    //     let priv_info = PrivateKeyInfo::new(,&Self::to_bytes(self));
+    //     if passphrase.len() > 0 {
+    //         Ok(key.private_key_to_pem_pkcs8_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())?)
+    //     } else {
+    //         Ok(key.private_key_to_pem_pkcs8()?)
+    //     }
+    // }
+
+    // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
+    //     let load_keystore = keystore_bytes.load_keystore();
+    // }
+
 }
 
 impl Hash for PrivateKey {
@@ -152,12 +184,59 @@ mod tests {
     use ed25519_dalek::{Signature, Signer, SIGNATURE_LENGTH};
     use rand::{thread_rng, Rng};
     use std::str::FromStr;
+    use crate::Mnemonic;
+    use openssl::pkey::PKey;
 
-    const PRIVATE_KEY_STR: &str = "302e020100300506032b6570042204204072d365d02199b5103336cf6a187578ffb6eba4ad6f8b2383c5cc54d00c4409";
+    const PRIVATE_KEY_STR: &str = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
     const PRIVATE_KEY_BYTES: &[u8] = &[
-        64, 114, 211, 101, 208, 33, 153, 181, 16, 51, 54, 207, 106, 24, 117, 120, 255, 182, 235,
-        164, 173, 111, 139, 35, 131, 197, 204, 84, 208, 12, 68, 9,
+        37,
+        72,
+        75,
+        126,
+        114,
+        100,
+        78,
+        40,
+        15,
+        44,
+        29,
+        64,
+        96,
+        23,
+        58,
+        11,
+        116,
+        50,
+        122,
+        15,
+        69,
+        113,
+        57,
+        55,
+        119,
+        50,
+        57,
+        68,
+        126,
+        83,
+        114,
+        16
     ];
+    const IOS_MNEMONIC_WALLET: &str = 
+        "tiny denial casual grass skull spare awkward indoor ethics dash enough flavor good daughter early hard rug staff capable swallow raise flavor empty angle";
+
+    const IOS_WALLET_PRIV_KEY: &str = 
+        "5f66a51931e8c99089472e0d70516b6272b94dd772b967f8221e1077f966dbda2b60cf7ee8cf10ecd5a076bffad9a7c7b97df370ad758c0f1dd4ef738e04ceb6";
+
+    const ENCRYPTED_PEM: &str =
+        "-----BEGIN ENCRYPTED PRIVATE KEY-----\n
+            MIGbMFcGCSqGSIb3DQEFDTBKMCkGCSqGSIb3DQEFDDAcBAi8WY7Gy2tThQICCAAw
+            DAYIKoZIhvcNAgkFADAdBglghkgBZQMEAQIEEOq46NPss58chbjUn20NoK0EQG1x
+            R88hIXcWDOECttPTNlMXWJt7Wufm1YwBibrxmCq1QykIyTYhy1TZMyxyPxlYW6aV
+            9hlo4YEh3uEaCmfJzWM=
+        \n-----END ENCRYPTED PRIVATE KEY-----";
+
+    const PEM_PASSPHRASE: &str = "this is a passphrase";
 
     #[test]
     fn test_generate() -> Result<(), KeyError> {
@@ -224,4 +303,34 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_from_pem() -> Result<(), KeyError> {
+        let key = PrivateKey::from_pem(ENCRYPTED_PEM, PEM_PASSPHRASE)?;
+        assert_eq!(key.to_string(), PRIVATE_KEY_STR);
+
+        Ok(())
+    }
+
+    // #[test]
+    // fn test_to_encrypted_pem() -> Result<(), KeyError> {
+    //     let pem: &[u8] = &PrivateKey::to_pem(PEM_PASSPHRASE)?;
+    //     let pkey = PKey::private_key_from_pem(pem)?;
+    //     Ok(())
+    // }
+
+    #[test]
+    fn test_derive() -> Result<(), KeyError> {
+        let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
+        let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
+        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "").unwrap();
+        let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
+
+        assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
+        
+        Ok(())
+    }
+
+    // const iosMnemonic = await Mnemonic.fromString(iosWalletMnemonic);
+    // const iosKey = await PrivateKey.fromMnemonic(iosMnemonic, "");
+    // const iosChildKey = await iosKey.derive(0);
 }
