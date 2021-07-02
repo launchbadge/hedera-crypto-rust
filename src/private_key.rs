@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
@@ -10,7 +11,9 @@ use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer, SECRET_KEY_LENGTH, SI
 use once_cell::sync::Lazy;
 use rand::{thread_rng, Rng};
 
+use crate::Mnemonic;
 use crate::key_error::KeyError;
+use crate::slip10::derive;
 
 const DER_PREFIX: &str = "302e020100300506032b657004220420";
 const DER_PREFIX_BYTES: Lazy<Vec<u8>> = Lazy::new(|| hex::decode(DER_PREFIX).unwrap());
@@ -80,6 +83,33 @@ impl PrivateKey {
     pub fn public_key(&self) -> crate::PublicKey {
         crate::PublicKey(self.keypair.public)
     }
+
+    /// Derive a new private key at the given wallet index.
+    ///
+    /// Only currently supported for keys created with `fromMnemonic()`; other keys will throw
+    /// an error.
+    ///
+    /// Returns a Private Key
+    ///
+    pub fn derive(&self, index: u32) -> Result<Self, KeyError> {
+        if self.chain_code == None {
+            Err(KeyError::DeriveError(index))
+        } else {
+            let (key_data, chain_code) = derive(
+                &self.keypair.secret.to_bytes(),
+                &self.chain_code.unwrap(),
+                index,
+            );
+
+            let key_pair = to_keypair(&key_data[..SECRET_KEY_LENGTH]);
+
+            Ok(Self {
+                keypair: key_pair?,
+                chain_code: Some(<[u8; 32]>::try_from(chain_code).unwrap()),
+            })
+        }
+    }
+        
 }
 
 impl Hash for PrivateKey {
@@ -193,4 +223,5 @@ mod tests {
 
         Ok(())
     }
+
 }

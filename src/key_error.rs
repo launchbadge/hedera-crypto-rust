@@ -6,6 +6,9 @@ pub enum KeyError {
     #[error(transparent)]
     Hex(#[from] hex::FromHexError),
 
+    #[error("this private key does not support key derivation")]
+    DeriveError(u32),
+
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
 
@@ -14,4 +17,5 @@ pub enum KeyError {
 
     #[error("legacy 22-word mnemonics do not support passphrases")]
     Passphrase,
+
 }

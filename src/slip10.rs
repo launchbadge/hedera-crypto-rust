@@ -1,17 +1,21 @@
+use byteorder::{BigEndian, ByteOrder};
+use sha2::{Digest, Sha384};
+
+type HmacSha384 = Hmac<Sha384>;
 use hmac::Hmac;
-use sha2::{Digest, Sha512};
 
-type HmacSha512 = Hmac<Sha512>;
+pub fn derive(parent_key: &[u8], chain_code: &[u8], index: u32) -> (Vec<u8>, Vec<u8>) {
+    let mut input = Vec::new();
 
-pub fn slip10_derive(parent_key: &[u8], chain_code: &[u8]) -> (Vec<u8>, Vec<u8>) {
-    let initial_input: Vec<u8> = vec![0];
+    input.push(0x00);
+    input.extend(parent_key);
+    BigEndian::write_u32(&mut input[33..], index);
 
-    let mut input = [&initial_input[..], &parent_key[..]].concat();
-    input[32] |= 128;
+    input[33] |= 128;
 
-    pbkdf2::pbkdf2::<HmacSha512>(parent_key, chain_code, 1, &mut input);
+    pbkdf2::pbkdf2::<HmacSha384>(parent_key, chain_code, 1, &mut input);
 
-    let digest = Sha512::digest(&input);
+    let digest = Sha384::digest(&input);
 
-    return (digest[0..32].to_vec(), digest[32..64].to_vec());
+    ((&digest[0..32]).to_vec(), (&digest[32..]).to_vec())
 }
