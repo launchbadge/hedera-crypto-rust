@@ -1,6 +1,7 @@
 use ed25519_dalek::SignatureError;
 use thiserror::Error;
 
+use crate::keystore_error::KeystoreError;
 use crate::mnemonic_error::MnemonicError;
 
 #[derive(Debug, Error)]
@@ -22,4 +23,7 @@ pub enum KeyError {
 
     #[error(transparent)]
     Mnemonic(#[from] MnemonicError),
+
+    #[error(transparent)]
+    Keystore(#[from] KeystoreError),
 }

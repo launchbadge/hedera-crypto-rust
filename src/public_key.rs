@@ -5,7 +5,6 @@ use std::str::FromStr;
 use std::{fmt, str};
 
 use ed25519_dalek::{Signature, Verifier};
-use hex;
 use once_cell::sync::Lazy;
 
 use crate::key_error::KeyError;

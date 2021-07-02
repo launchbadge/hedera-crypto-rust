@@ -3,21 +3,14 @@ use std::str;
 
 use aes::Aes128Ctr;
 use cipher::{NewCipher, StreamCipher, StreamCipherSeek};
-use ed25519_dalek::{Keypair, SecretKey};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::{Sha256, Sha384};
 
-#[allow(unused_imports)]
-use crate::keystore_error::KeyStoreError;
+use crate::keystore_error::KeystoreError;
 use crate::private_key::PrivateKey;
-
-// Create alias for HMAC-SHA256
-#[allow(dead_code)]
-type HmacSha384 = Hmac<Sha384>;
-#[allow(dead_code)]
-type HmacSha256 = Hmac<Sha256>;
+use crate::KeyError;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct KDFParams {
@@ -43,7 +36,7 @@ struct Crypto {
     cipher_params: CipherParams,
 
     cipher: Cow<'static, str>,
-    kdf: KeystoreKdf,
+    kdf: Cow<'static, str>,
 
     #[serde(rename(serialize = "kdfparams", deserialize = "kdfparams"))]
     kdf_params: KDFParams,
@@ -55,15 +48,9 @@ struct Crypto {
 #[repr(u8)]
 enum KeystoreVersion {
     V1 = 1,
-    V2 = 2,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-enum KeystoreKdf {
-    #[serde(rename = "pbkdf2")]
-    Pbkdf2,
-}
-
+// FIXME: KeyStore vs KeystoreVersion
 #[derive(serde::Serialize, serde::Deserialize)]
 struct KeyStore {
     version: KeystoreVersion,
@@ -72,126 +59,113 @@ struct KeyStore {
 
 // create keystore
 //      returns an array that has an encoded serde KeyStore struct
-impl KeyStore {
-    #[allow(dead_code)]
-    fn create_keystore(private_key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
-        let c_iter: u32 = 262144;
-        let mut derived_key: [u8; 32] = [0; 32];
-        let pk_len = private_key.len();
-        let salt = rand::thread_rng().gen::<[u8; 32]>();
-        let iv = rand::thread_rng().gen::<[u8; 16]>();
+fn create_keystore(private_key: &[u8], pass: &str) -> Result<Vec<u8>, KeystoreError> {
+    let c_iter: u32 = 262144;
+    let mut derived_key: [u8; 32] = [0; 32];
+    let pk_len = private_key.len();
+    let salt = rand::thread_rng().gen::<[u8; 32]>();
+    let iv = rand::thread_rng().gen::<[u8; 16]>();
 
-        // this line takes a hefty 5 seconds to run. yikes.
-        pbkdf2::pbkdf2::<HmacSha256>(pass.as_bytes(), &salt, c_iter, &mut derived_key);
+    // this line takes a hefty 5 seconds to run. yikes.
+    pbkdf2::pbkdf2::<Hmac<Sha256>>(pass.as_bytes(), &salt, c_iter, &mut derived_key);
 
-        // AES-128-CTR with the first half of the derived key and a random IV
-        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv)?;
-        let mut buffer = vec![0u8; pk_len];
+    // AES-128-CTR with the first half of the derived key and a random IV
+    let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv)?;
+    let mut buffer = vec![0u8; pk_len];
 
-        // copy message to the buffer
-        let pos = private_key.len();
-        buffer[..pos].copy_from_slice(private_key);
-        // let cipher_text = cipher.encrypt(&mut buffer, pos).unwrap();
-        cipher.apply_keystream(&mut buffer);
+    // copy message to the buffer
+    let pos = private_key.len();
+    buffer[..pos].copy_from_slice(private_key);
+    // let cipher_text = cipher.encrypt(&mut buffer, pos).unwrap();
+    cipher.apply_keystream(&mut buffer);
 
-        let mut mac = HmacSha384::new_from_slice(&derived_key[16..derived_key.len()])
-            .expect("HMAC can take key of any size");
-        mac.update(&buffer);
+    let mut mac = Hmac::<Sha384>::new_from_slice(&derived_key[16..derived_key.len()])
+        .expect("HMAC can take key of any size");
+    mac.update(&buffer);
 
-        // get auth code in bytes
-        let result = mac.finalize();
-        let code_bytes = result.into_bytes();
+    // get auth code in bytes
+    let result = mac.finalize();
+    let code_bytes = result.into_bytes();
 
-        let iv_encoded = hex::encode(iv);
+    let iv_encoded = hex::encode(iv);
 
-        let keystore = KeyStore {
-            version: KeystoreVersion::V1,
-            crypto: Crypto {
-                ciphertext: hex::encode(buffer),
-                cipher_params: CipherParams { iv: iv_encoded },
-                cipher: Cow::Borrowed("AES-128-CTR"),
-                kdf: KeystoreKdf::Pbkdf2,
-                kdf_params: KDFParams {
-                    dk_len: 32,
-                    salt: hex::encode(salt),
-                    c: 262144,
-                    prf: Cow::Borrowed("hmac-sha256"),
-                },
-                mac: hex::encode((&*code_bytes).to_vec()),
+    let keystore = KeyStore {
+        version: KeystoreVersion::V1,
+        crypto: Crypto {
+            ciphertext: hex::encode(buffer),
+            cipher_params: CipherParams { iv: iv_encoded },
+            cipher: Cow::Borrowed("AES-128-CTR"),
+            kdf: Cow::Borrowed("pbkdf2"),
+            kdf_params: KDFParams {
+                dk_len: 32,
+                salt: hex::encode(salt),
+                c: 262144,
+                prf: Cow::Borrowed("hmac-sha256"),
             },
-        };
+            mac: hex::encode((&*code_bytes).to_vec()),
+        },
+    };
 
-        let keystore_encode_str = serde_json::to_string(&keystore)?;
+    let keystore_encode_str = serde_json::to_string(&keystore)?;
 
-        Ok(keystore_encode_str.into_bytes())
-    }
-
-    #[allow(dead_code)]
-    fn load_keystore(keystore: &[u8], pass: &str) -> Result<Keypair, KeyStoreError> {
-        let keystore_str = str::from_utf8(&keystore)?;
-
-        let keystore_serde: KeyStore = serde_json::from_str(&keystore_str).unwrap();
-
-        // todo: set up errors
-        match keystore_serde.version {
-            KeystoreVersion::V1 => (),
-            KeystoreVersion::V2 => panic!("keystore version not supported: V2"),
-        }
-
-        if keystore_serde.crypto.kdf_params.prf != *"hmac-sha256" {
-            panic!(
-                "unsupported key derivation hash function: {}",
-                keystore_serde.crypto.kdf_params.prf
-            );
-        }
-
-        let salt = hex::decode(keystore_serde.crypto.kdf_params.salt)?;
-
-        // derive key
-        let mut derived_key: [u8; 32] = [0; 32];
-        pbkdf2::pbkdf2::<HmacSha256>(
-            pass.as_bytes(),
-            &(salt),
-            keystore_serde.crypto.kdf_params.c,
-            &mut derived_key,
-        );
-
-        // verify mac
-        let mut key_buffer = hex::decode(&keystore_serde.crypto.ciphertext)?;
-
-        let mut mac = HmacSha384::new_from_slice(&derived_key[16..derived_key.len()])
-            .expect("HMAC can take key of any size");
-        mac.update(&key_buffer);
-
-        let mac_decode = hex::decode(keystore_serde.crypto.mac)?;
-
-        // compare two vectors to verify hmac:
-        mac.verify(&mac_decode).map_err(|_| KeyStoreError::HmacError)?;
-
-        let iv_decode = hex::decode(keystore_serde.crypto.cipher_params.iv)?;
-
-        // decrypt the cipher
-        let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv_decode)?;
-        cipher.seek(0);
-        cipher.apply_keystream(&mut key_buffer);
-
-        let secret_key = SecretKey::from_bytes(&key_buffer)?;
-        let public_key = (&secret_key).into();
-
-        Ok(Keypair { secret: secret_key, public: public_key })
-    }
+    Ok(keystore_encode_str.into_bytes())
 }
 
-#[allow(dead_code)]
-pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
-    let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
-    Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
+fn load_keystore(data: &[u8], passphrase: &str) -> Result<Vec<u8>, KeystoreError> {
+    let keystore: KeyStore = serde_json::from_slice(&data)?;
+
+    if keystore.crypto.kdf != "pbkdf2" {
+        return Err(KeystoreError::UnsupportedKeyDerivationFunction(
+            keystore.crypto.kdf.to_string(),
+        ));
+    }
+
+    if keystore.crypto.kdf_params.prf != "hmac-sha256" {
+        return Err(KeystoreError::UnsupportedHashFunction(
+            keystore.crypto.kdf_params.prf.to_string(),
+        ));
+    }
+
+    let salt = hex::decode(keystore.crypto.kdf_params.salt)?;
+
+    // derive key
+    let mut derived_key: [u8; 32] = [0; 32];
+    pbkdf2::pbkdf2::<Hmac<Sha256>>(
+        passphrase.as_bytes(),
+        &salt,
+        keystore.crypto.kdf_params.c,
+        &mut derived_key,
+    );
+
+    // verify mac
+    let mut key_buffer = hex::decode(&keystore.crypto.ciphertext)?;
+
+    let mut mac = Hmac::<Sha384>::new_from_slice(&derived_key[16..derived_key.len()]).unwrap();
+    mac.update(&key_buffer);
+
+    let mac_decode = hex::decode(keystore.crypto.mac)?;
+
+    // compare two vectors to verify hmac:
+    mac.verify(&mac_decode)?;
+
+    let iv_decode = hex::decode(keystore.crypto.cipher_params.iv)?;
+
+    // decrypt the cipher
+    let mut cipher = Aes128Ctr::new_from_slices(&derived_key[0..16], &iv_decode)?;
+    cipher.seek(0);
+    cipher.apply_keystream(&mut key_buffer);
+
+    Ok(key_buffer)
 }
 
-#[allow(dead_code)]
-pub fn to_keystore(key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
-    let keystore = KeyStore::create_keystore(key, pass)?;
-    Ok(keystore)
+impl PrivateKey {
+    pub fn from_keystore(keystore: &[u8], passphrase: &str) -> Result<PrivateKey, KeyError> {
+        PrivateKey::from_bytes(&load_keystore(keystore, passphrase)?)
+    }
+
+    pub fn to_keystore(&self, passphrase: &str) -> Result<Vec<u8>, KeyError> {
+        Ok(create_keystore(self.keypair.secret.as_bytes(), passphrase)?)
+    }
 }
 
 #[cfg(test)]

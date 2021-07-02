@@ -1,21 +1,21 @@
 mod bip39_words;
 mod derive;
 mod entropy;
+mod key;
 mod key_error;
+mod key_list;
 mod keystore;
+mod keystore_error;
 mod legacy_words;
 mod mnemonic;
 mod mnemonic_error;
 mod private_key;
 mod public_key;
 mod slip10;
+
 pub use key_error::KeyError;
-pub use mnemonic_error::MnemonicError;
-
-mod key;
-mod key_list;
-mod keystore_error;
-
+pub use keystore_error::KeystoreError;
 pub use mnemonic::Mnemonic;
+pub use mnemonic_error::MnemonicError;
 pub use private_key::PrivateKey;
 pub use public_key::PublicKey;
