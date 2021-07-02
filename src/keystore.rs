@@ -17,27 +17,6 @@ type HmacSha384 = Hmac<Sha384>;
 #[allow(dead_code)]
 type HmacSha256 = Hmac<Sha256>;
 
-#[derive(Error, Debug)]
-pub enum KeyStoreError {
-    #[error("HMAC mismatch; passphrase is incorrect")]
-    HmacError,
-
-    #[error(transparent)]
-    Utf8Error(#[from] Utf8Error),
-
-    #[error(transparent)]
-    FromHexError(#[from] FromHexError),
-
-    #[error(transparent)]
-    InvalidLength(#[from] InvalidLength),
-
-    #[error(transparent)]
-    SignatureError(#[from] SignatureError),
-
-    #[error(transparent)]
-    SerdeError(#[from] serde_json::Error),
-}
-
 #[derive(serde::Serialize, serde::Deserialize)]
 struct KDFParams {
     #[serde(rename(serialize = "dkLen", deserialize = "dkLen"))]
@@ -202,18 +181,6 @@ impl KeyStore {
             public: public_key,
         })
     }
-
-    // #[allow(dead_code)]
-    // pub fn from_keystore(keystore: &[u8], pass: &str) -> Result<PrivateKey, KeyStoreError> {
-    //     let key_pair: Keypair = KeyStore::load_keystore(keystore, pass)?;
-    //     Ok(PrivateKey::from_bytes(&key_pair.to_bytes()).unwrap())
-    // }
-    //
-    // #[allow(dead_code)]
-    // pub fn to_keystore(key: &[u8], pass: &str) -> Result<Vec<u8>, KeyStoreError> {
-    //     let keystore = KeyStore::create_keystore(key, pass)?;
-    //     Ok(keystore)
-    // }
 }
 
 #[allow(dead_code)]
