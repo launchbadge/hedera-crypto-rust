@@ -152,7 +152,7 @@ mod tests {
     use rand::{thread_rng, Rng};
     use std::str::FromStr;
     use crate::keystore;
-    use crate::keystore::KeyStoreError;
+    use crate::keystore_error::KeyStoreError;
 
     const PRIVATE_KEY_STR: &str = "302e020100300506032b6570042204204072d365d02199b5103336cf6a187578ffb6eba4ad6f8b2383c5cc54d00c4409";
     const PRIVATE_KEY_BYTES: &[u8] = &[

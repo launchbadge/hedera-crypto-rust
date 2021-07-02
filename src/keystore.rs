@@ -1,16 +1,15 @@
 use crate::private_key::PrivateKey;
 use aes::Aes128Ctr;
-use cipher::{NewCipher, StreamCipher, StreamCipherSeek, errors::InvalidLength};
-use ed25519_dalek::{Keypair, SecretKey, SignatureError};
+use cipher::{NewCipher, StreamCipher, StreamCipherSeek};
+use ed25519_dalek::{Keypair, SecretKey};
 use hmac::{Hmac, Mac, NewMac};
 use rand::Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::{Sha256, Sha384};
 use std::borrow::Cow;
 use std::str;
-use thiserror::Error;
-use hex::FromHexError;
-use std::str::Utf8Error;
+#[allow(unused_imports)]
+use crate::keystore_error::KeyStoreError;
 
 // Create alias for HMAC-SHA256
 #[allow(dead_code)]
@@ -237,6 +236,7 @@ mod tests {
     use std::str;
     use crate::private_key::PrivateKey;
     use crate::keystore;
+    use crate::keystore_error::KeyStoreError;
 
     #[test]
     fn load_keystore() {

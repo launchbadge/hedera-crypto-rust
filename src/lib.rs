@@ -14,6 +14,7 @@ pub use mnemonic_error::MnemonicError;
 
 mod key;
 mod key_list;
+mod keystore_error;
 
 pub use mnemonic::Mnemonic;
 pub use private_key::PrivateKey;
