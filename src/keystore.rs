@@ -172,8 +172,6 @@ impl PrivateKey {
 mod tests {
     use std::str;
 
-    use ed25519_dalek::Keypair;
-
     use crate::keystore;
     use crate::keystore::KeyStore;
     use crate::private_key::PrivateKey;
@@ -183,11 +181,10 @@ mod tests {
         let p_key = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let keystore = KeyStore::create_keystore(&hex_string, "hello").unwrap();
-        let keypair: Keypair = KeyStore::load_keystore(&keystore, "hello").unwrap();
+        let keystore = keystore::create_keystore(&hex_string, "hello").unwrap();
+        let keypair = keystore::load_keystore(&keystore, "hello").unwrap();
 
-        let keypair_bytes = keypair.secret.to_bytes().to_vec();
-        let keystore_2_str = hex::encode(keypair_bytes);
+        let keystore_2_str = hex::encode(keypair);
 
         assert_eq!(p_key, keystore_2_str);
     }
@@ -196,8 +193,8 @@ mod tests {
     fn to_from_keystore() {
         let private_key = PrivateKey::generate();
 
-        let keystore = keystore::to_keystore(&private_key.to_bytes(), "pass1").unwrap();
-        let p_key_pair = keystore::from_keystore(&keystore, "pass1").unwrap();
+        let keystore = PrivateKey::to_keystore(&private_key, "pass1").unwrap();
+        let p_key_pair = PrivateKey::from_keystore(&keystore, "pass1").unwrap();
 
         assert_eq!(private_key.to_bytes(), p_key_pair.to_bytes());
     }
@@ -206,8 +203,8 @@ mod tests {
     fn wrong_pass_keystore() {
         let private_key = PrivateKey::generate();
 
-        let keystore = keystore::to_keystore(&private_key.to_bytes(), "pass1").unwrap();
-        let p_key_pair = keystore::from_keystore(&keystore, "pass2");
+        let keystore = PrivateKey::to_keystore(&private_key, "pass1").unwrap();
+        let p_key_pair = PrivateKey::from_keystore(&keystore, "pass2");
 
         let check_pass = match p_key_pair {
             Ok(_) => false,
@@ -222,7 +219,7 @@ mod tests {
         let p_key = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key).unwrap();
 
-        let keystore = KeyStore::create_keystore(&hex_string, "hello").unwrap();
+        let keystore = keystore::create_keystore(&hex_string, "hello").unwrap();
 
         // let keystore_decode = hex::decode(&keystore).unwrap();
         let keystore_str = str::from_utf8(&keystore).unwrap();
@@ -235,7 +232,7 @@ mod tests {
 
         print_keystores(&keystore_guy);
 
-        let keystore_2 = KeyStore::load_keystore(&keystore_guy, "hello");
+        let keystore_2 = keystore::load_keystore(&keystore_guy, "hello");
 
         let check_hmac = match keystore_2 {
             Ok(_) => false,
@@ -251,7 +248,7 @@ mod tests {
         let p_key_js = "db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
         let hex_string = hex::decode(p_key_js).unwrap();
 
-        let p_key = keystore::from_keystore(&keystore_js, "hello").unwrap();
+        let p_key = PrivateKey::from_keystore(&keystore_js, "hello").unwrap();
 
         assert_eq!(hex_string, p_key.to_bytes());
     }

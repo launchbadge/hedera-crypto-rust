@@ -165,8 +165,7 @@ mod tests {
     use rand::{thread_rng, Rng};
 
     use super::{KeyError, PrivateKey};
-    use crate::keystore_error::KeyStoreError;
-    use crate::{keystore, Mnemonic};
+    use crate::Mnemonic;
 
     const PRIVATE_KEY_STR: &str = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
     const PRIVATE_KEY_BYTES: &[u8] = &[
@@ -243,11 +242,13 @@ mod tests {
     }
 
     #[test]
-    fn test_to_from_keystore() -> Result<(), KeyStoreError> {
-        let keystore = keystore::to_keystore(PRIVATE_KEY_BYTES, "pass")?;
-        let private_key_bytes = keystore::from_keystore(&keystore, "pass").unwrap();
+    fn test_to_from_keystore() -> Result<(), KeyError> {
+        let private_key = PrivateKey::generate();
 
-        assert_eq!(private_key_bytes.to_bytes(), PRIVATE_KEY_BYTES);
+        let keystore = PrivateKey::to_keystore(&private_key, "pass")?;
+        let private_key_bytes = PrivateKey::from_keystore(&keystore, "pass").unwrap();
+
+        assert_eq!(private_key_bytes.to_bytes(), private_key.to_bytes());
 
         Ok(())
     }
