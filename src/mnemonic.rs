@@ -40,14 +40,15 @@ impl Mnemonic {
         let entropy_bits = bytes_to_binary(&seed);
         let check_sum_bits = derive_check_sum_bits(&seed);
         let bits = entropy_bits + &check_sum_bits;
+        let collect_bits = bits.chars().collect::<Vec<char>>();
+        let mut chunks = collect_bits.chunks(11);
 
-        // FIXME: Use <https://doc.rust-lang.org/stable/std/primitive.slice.html#method.chunks> instead of regex
-        let re = Regex::new(r"(.{1,11})").unwrap();
-
-        let words: Vec<_> = re
-            .captures_iter(&bits)
-            .map(|cap| BIP39_WORDS[binary_to_byte(&cap[1]) as usize].to_string())
-            .collect();
+        let mut words: Vec<_> = Vec::new();
+        for _ in 0..length {
+            // UNWRAP: chunks.next() will always give 11 characters
+            let word = chunks.next().unwrap().iter().collect::<String>();
+            words.push(BIP39_WORDS[binary_to_byte(&word) as usize].to_string())
+        }
 
         Ok(Self { words: words.into_boxed_slice(), legacy: false })
     }
@@ -117,14 +118,21 @@ impl Mnemonic {
                 })
                 .collect::<Vec<usize>>();
 
+            println!("{:?}", unknown_word_indices);
+
             if unknown_word_indices.len() > 0 {
-                return Err(MnemonicError::UnknownWord);
+                println!(
+                    "{:?}",
+                    MnemonicError::UnknownWord {
+                        index: unknown_word_indices[0] as i32,
+                        word: self.words[unknown_word_indices[0] as usize].clone(),
+                    }
+                );
             }
 
             let (seed, checksum) = entropy::legacy_1(&*self.words);
-            let new_check_sum = entropy::crc_8(&seed);
-
-            if checksum != new_check_sum {
+            let new_checksum = entropy::crc_8(&seed);
+            if checksum != new_checksum {
                 return Err(MnemonicError::ChecksumMismatch);
             }
         } else {
@@ -142,7 +150,13 @@ impl Mnemonic {
                 .collect::<Vec<usize>>();
 
             if unknown_word_indices.len() > 0 {
-                return Err(MnemonicError::UnknownWord);
+                println!(
+                    "{:?}",
+                    MnemonicError::UnknownWord {
+                        index: unknown_word_indices[0] as i32,
+                        word: self.words[unknown_word_indices[0] as usize].clone(),
+                    }
+                );
             }
 
             let mut bits = String::new();
@@ -158,7 +172,7 @@ impl Mnemonic {
 
             let divider_index = (bits.len() as f64 / 33.0).floor() * 32.0;
             let entropy_bits = &bits[..divider_index as usize];
-            let check_sum_bits = &bits[divider_index as usize..];
+            let checksum_bits = &bits[divider_index as usize..];
 
             let re = Regex::new(r"(.{1,8})").unwrap();
 
@@ -167,9 +181,9 @@ impl Mnemonic {
                 entropy_bytes.push(binary_to_byte(&cap[1]).to_string().parse::<u8>().unwrap());
             }
 
-            let new_check_sum = derive_check_sum_bits(&entropy_bytes);
+            let new_checksum = derive_check_sum_bits(&entropy_bytes);
 
-            if new_check_sum != check_sum_bits {
+            if new_checksum != checksum_bits {
                 return Err(MnemonicError::ChecksumMismatch);
             }
         }
@@ -190,8 +204,8 @@ impl Mnemonic {
         let mut digest = mac.finalize().into_bytes();
         let (key_data, chain_code) = digest.split_at_mut(32);
 
-        for index in [44, 3030, 0, 0] {
-            slip10::derive(key_data, chain_code, index);
+        for index in [44, 3030, 0, 0].iter() {
+            slip10::derive(key_data, chain_code, *index);
         }
 
         let keypair = to_keypair(&key_data).unwrap();
@@ -208,14 +222,11 @@ impl Mnemonic {
     pub fn to_legacy_private_key(&self) -> Result<PrivateKey, KeyError> {
         let index: i32 = if self.legacy { -1 } else { 0 };
 
-        // FIXME: legacy functions should work with and produce arrays
         let seed: [u8; 32] = if self.legacy {
             entropy::legacy_1(&*self.words).0
         } else {
             entropy::legacy_2(&*self.words)?
-        }
-        .try_into()
-        .unwrap();
+        };
 
         let key_data = derive::legacy(&seed, index);
         let private_key = PrivateKey::from_bytes(&key_data)?;
@@ -325,27 +336,34 @@ mod tests {
     }
 
     #[test]
-    fn test_to_legacy_private_key() -> Result<(), LegacyPrivateKeyError> {
-        let mnemonic = Mnemonic::from_str(
-            "combine quiz usual goddess topple bonus give drive target index love volcano",
+    fn test_to_legacy_private_key() -> Result<(), KeyError> {
+        // NOTE: This will fail, waiting on fix for legacy derive
+        let legacy_mnemonic = Mnemonic::from_str(
+            "jolly,kidnap,Tom,lawn,drunk,chick,optic,lust,mutter,mole,bride,galley,dense,member,sage,neural,widow,decide,curb,aboard,margin,manure"
         )
         .unwrap();
-        let private_key = Mnemonic::to_legacy_private_key(&mnemonic)?;
 
-        assert_eq!(private_key.to_string(), "302e020100300506032b65700422042059412a6c798fbdad67dd820588135148d7d341920bc8abdeabe8c2269d543101".to_string());
-        assert_eq!(private_key.to_string().chars().count(), 96);
+        let legacy2_mnemonic = Mnemonic::from_str(
+            "obvious,favorite,remain,caution,remove,laptop,base,vacant,increase,video,erase,pass,sniff,sausage,knock,grid,argue,salt,romance,way,alone,fever,slush,dune",
+        )
+        .unwrap();
+
+        let legacy_private_key = Mnemonic::to_legacy_private_key(&legacy_mnemonic)?;
+        let legacy2_private_key = Mnemonic::to_legacy_private_key(&legacy2_mnemonic)?;
+        assert_eq!(legacy_private_key.to_string(), "302e020100300506032b657004220420882a565ad8cb45643892b5366c1ee1c1ef4a730c5ce821a219ff49b6bf173ddf".to_string());
+        assert_eq!(legacy2_private_key.to_string(), "302e020100300506032b6570042204202b7345f302a10c2a6d55bf8b7af40f125ec41d780957826006d30776f0c441fb".to_string());
+
         Ok(())
     }
 
     #[test]
     fn test_to_private_key() -> Result<(), KeyError> {
         let mnemonic = Mnemonic::from_str(
-            "combine quiz usual goddess topple bonus give drive target index love volcano",
+            "inmate flip alley wear offer often piece magnet surge toddler submit right radio absent pear floor belt raven price stove replace reduce plate home",
         )
         .unwrap();
         let private_key = Mnemonic::to_private_key(&mnemonic, "")?;
-        assert_eq!(private_key.to_string(), "302e020100300506032b657004220420696e76f750d16a21d11f931e99418f1da9e6078f362b4c7a41f0960714f5df94".to_string());
-        assert_eq!(private_key.to_string().chars().count(), 96);
+        assert_eq!(private_key.to_string(), "302e020100300506032b657004220420853f15aecd22706b105da1d709b4ac05b4906170c2b9c7495dff9af49e1391da".to_string());
         Ok(())
     }
 }
