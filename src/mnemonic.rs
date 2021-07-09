@@ -32,7 +32,7 @@ impl Mnemonic {
             12 => 16,
             24 => 32,
 
-            _ => return Err(MnemonicError::Length(length)),
+            _ => return Err(MnemonicError::UnsupportedLength(length)),
         };
 
         let seed: Vec<u8> = (0..needed_entropy).map(|_| rand::random::<u8>()).collect();
@@ -106,28 +106,13 @@ impl Mnemonic {
     fn validate(&self) -> Result<(), MnemonicError> {
         if self.legacy {
             if self.words.len() != 22 {
-                return Err(MnemonicError::Length(self.words.len()));
+                return Err(MnemonicError::UnsupportedLength(self.words.len()));
             }
 
-            let unknown_word_indices = self
-                .words
-                .iter()
-                .filter_map(|word| match LEGACY_WORDS.binary_search(&&word[..]) {
-                    Ok(_) => None,
-                    Err(index) => Some(index),
-                })
-                .collect::<Vec<usize>>();
-
-            println!("{:?}", unknown_word_indices);
-
-            if unknown_word_indices.len() > 0 {
-                println!(
-                    "{:?}",
-                    MnemonicError::UnknownWord {
-                        index: unknown_word_indices[0] as i32,
-                        word: self.words[unknown_word_indices[0] as usize].clone(),
-                    }
-                );
+            for (word_index, word) in self.words.iter().enumerate() {
+                LEGACY_WORDS.binary_search(&&word.to_lowercase()[..]).map_err(|_| {
+                    MnemonicError::WordNotFound { index: word_index, word: word.to_string() }
+                })?;
             }
 
             let (seed, checksum) = entropy::legacy_1(&*self.words);
@@ -137,26 +122,13 @@ impl Mnemonic {
             }
         } else {
             if !(self.words.len() == 12 || self.words.len() == 24) {
-                return Err(MnemonicError::Length(self.words.len()));
+                return Err(MnemonicError::UnsupportedLength(self.words.len()));
             }
 
-            let unknown_word_indices = self
-                .words
-                .iter()
-                .filter_map(|word| match BIP39_WORDS.binary_search(&&word[..]) {
-                    Ok(_) => None,
-                    Err(index) => Some(index),
-                })
-                .collect::<Vec<usize>>();
-
-            if unknown_word_indices.len() > 0 {
-                println!(
-                    "{:?}",
-                    MnemonicError::UnknownWord {
-                        index: unknown_word_indices[0] as i32,
-                        word: self.words[unknown_word_indices[0] as usize].clone(),
-                    }
-                );
+            for (word_index, word) in self.words.iter().enumerate() {
+                BIP39_WORDS.binary_search(&&word.to_lowercase()[..]).map_err(|_| {
+                    MnemonicError::WordNotFound { index: word_index, word: word.to_string() }
+                })?;
             }
 
             let mut bits = String::new();
@@ -174,11 +146,16 @@ impl Mnemonic {
             let entropy_bits = &bits[..divider_index as usize];
             let checksum_bits = &bits[divider_index as usize..];
 
-            let re = Regex::new(r"(.{1,8})").unwrap();
+            let needed_entropy: usize = if self.words.len() == 12 { 16 } else { 32 };
 
-            let mut entropy_bytes = Vec::new();
-            for cap in re.captures_iter(&entropy_bits) {
-                entropy_bytes.push(binary_to_byte(&cap[1]).to_string().parse::<u8>().unwrap());
+            let collect_entropy_bits = entropy_bits.chars().collect::<Vec<char>>();
+            let mut entropy_chunks = collect_entropy_bits.chunks(8);
+
+            let mut entropy_bytes: Vec<_> = Vec::new();
+            for _ in 0..needed_entropy {
+                // UNWRAP: chunks.next() will always give 8 characters
+                let entropy = entropy_chunks.next().unwrap().iter().collect::<String>();
+                entropy_bytes.push(binary_to_byte(&entropy).to_string().parse::<u8>().unwrap());
             }
 
             let new_checksum = derive_check_sum_bits(&entropy_bytes);
