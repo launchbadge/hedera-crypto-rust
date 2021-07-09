@@ -9,11 +9,8 @@ pub enum MnemonicError {
     Passphrase,
 
     #[error("unsupported phrase length {0}, Only 12 and 24 are supported")]
-    Length(usize),
+    UnsupportedLength(usize),
 
-    #[error("mnemonic contained words that are not in the standard word list: index - {index:?}, word - {word:?}")]
-    UnknownWord { index: i32, word: String },
-
-    #[error("word not found in word list: `{0}`")]
-    WordNotFound(String),
+    #[error("word not found in word list: index - {index:?}, word - {word:?}")]
+    WordNotFound { index: usize, word: String },
 }

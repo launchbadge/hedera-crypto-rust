@@ -27,9 +27,9 @@ pub fn legacy_2(words: &[String]) -> Result<[u8; 32], MnemonicError> {
     let mut concat_bits = vec![false; words.len() * 11];
 
     for (word_index, word) in words.iter().enumerate() {
-        let index = BIP39_WORDS
-            .binary_search(&&word.to_lowercase()[..])
-            .map_err(|_| MnemonicError::WordNotFound(word.to_string()))?;
+        let index = BIP39_WORDS.binary_search(&&word.to_lowercase()[..]).map_err(|_| {
+            MnemonicError::WordNotFound { index: word_index, word: word.to_string() }
+        })?;
 
         for j in 0..11 {
             concat_bits[word_index * 11 + j] = index & (1 << (10 - j)) != 0;
