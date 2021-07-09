@@ -7,7 +7,6 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use pbkdf2::pbkdf2;
 use private_key::PrivateKey;
-use regex::Regex;
 use sha2::{Digest, Sha256, Sha512};
 
 use crate::bip39_words::BIP39_WORDS;
