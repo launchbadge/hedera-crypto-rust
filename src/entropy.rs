@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 use crate::bip39_words::BIP39_WORDS;
 use crate::legacy_words::LEGACY_WORDS;
-use crate::mnemonic_error::MnemonicError;
+use crate::bad_mnemonic_error::BadMnemonicError;
 
 pub fn legacy_1(words: &[String]) -> ([u8; 32], u8) {
     let indices = words
@@ -22,13 +22,13 @@ pub fn legacy_1(words: &[String]) -> ([u8; 32], u8) {
     return (result.try_into().unwrap(), checksum);
 }
 
-pub fn legacy_2(words: &[String]) -> Result<[u8; 32], MnemonicError> {
+pub fn legacy_2(words: &[String]) -> Result<[u8; 32], BadMnemonicError> {
     let concat_bits_len = words.len() * 11;
     let mut concat_bits = vec![false; words.len() * 11];
 
     for (word_index, word) in words.iter().enumerate() {
         let index = BIP39_WORDS.binary_search(&&word.to_lowercase()[..]).map_err(|_| {
-            MnemonicError::WordNotFound { index: word_index, word: word.to_string() }
+            BadMnemonicError::UnknownWords { index: word_index, word: word.to_string() }
         })?;
 
         for j in 0..11 {
@@ -53,7 +53,7 @@ pub fn legacy_2(words: &[String]) -> Result<[u8; 32], MnemonicError> {
 
     for i in 0..check_sum_bits_len as usize {
         if concat_bits[entropy_bits_len as usize + i] != hash_bits[i] {
-            return Err(MnemonicError::ChecksumMismatch);
+            return Err(BadMnemonicError::ChecksumMismatch{ words: words.to_vec() });
         }
     }
     return Ok(entropy.try_into().unwrap());

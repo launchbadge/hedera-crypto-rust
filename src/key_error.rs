@@ -2,7 +2,7 @@ use ed25519_dalek::SignatureError;
 use thiserror::Error;
 
 use crate::keystore_error::KeystoreError;
-use crate::mnemonic_error::MnemonicError;
+use crate::bad_mnemonic_error::BadMnemonicError;
 
 #[derive(Debug, Error)]
 pub enum KeyError {
@@ -10,7 +10,7 @@ pub enum KeyError {
     Hex(#[from] hex::FromHexError),
 
     #[error("this private key does not support key derivation")]
-    DeriveError(u32),
+    DeriveError(i64),
 
     #[error("invalid private key length: {0} bytes")]
     Length(usize),
@@ -22,7 +22,7 @@ pub enum KeyError {
     PassphraseUnsupported,
 
     #[error(transparent)]
-    Mnemonic(#[from] MnemonicError),
+    Mnemonic(#[from] BadMnemonicError),
 
     #[error(transparent)]
     Keystore(#[from] KeystoreError),

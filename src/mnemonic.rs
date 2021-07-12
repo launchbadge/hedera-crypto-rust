@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256, Sha512};
 use crate::bip39_words::BIP39_WORDS;
 use crate::key_error::KeyError;
 use crate::legacy_words::LEGACY_WORDS;
-use crate::mnemonic_error::MnemonicError;
+use crate::bad_mnemonic_error::BadMnemonicError;
 use crate::private_key::to_keypair;
 use crate::{derive, entropy, private_key, slip10};
 
@@ -26,12 +26,12 @@ impl Mnemonic {
     /// Returns a new random 12 or 24 word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate(length: usize) -> Result<Self, MnemonicError> {
+    pub fn generate(length: usize) -> Result<Self, BadMnemonicError> {
         let needed_entropy: usize = match length {
             12 => 16,
             24 => 32,
 
-            _ => return Err(MnemonicError::UnsupportedLength(length)),
+            _ => return Err(BadMnemonicError::BadLength(length)),
         };
 
         let seed: Vec<u8> = (0..needed_entropy).map(|_| rand::random::<u8>()).collect();
@@ -55,14 +55,14 @@ impl Mnemonic {
     /// Returns a new random 12-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_12() -> Result<Self, MnemonicError> {
+    pub fn generate_12() -> Result<Self, BadMnemonicError> {
         Self::generate(12)
     }
 
     /// Returns a new random 24-word mnemonic from the BIP-39
     /// standard English word list.
     ///
-    pub fn generate_24() -> Result<Self, MnemonicError> {
+    pub fn generate_24() -> Result<Self, BadMnemonicError> {
         Self::generate(24)
     }
 
@@ -74,7 +74,7 @@ impl Mnemonic {
     // contain the failing mnemonic in case you wish to ignore the
     // validation error and continue.
     //
-    pub fn from_words<I, T>(words: I) -> Result<Self, MnemonicError>
+    pub fn from_words<I, T>(words: I) -> Result<Self, BadMnemonicError>
     where
         I: IntoIterator<Item = T>,
         T: Into<String>,
@@ -102,31 +102,31 @@ impl Mnemonic {
         Ok(self.passphrase_to_private_key(passphrase)?)
     }
 
-    fn validate(&self) -> Result<(), MnemonicError> {
+    fn validate(&self) -> Result<(), BadMnemonicError> {
         if self.legacy {
             if self.words.len() != 22 {
-                return Err(MnemonicError::UnsupportedLength(self.words.len()));
+                return Err(BadMnemonicError::BadLength(self.words.len()));
             }
 
             for (word_index, word) in self.words.iter().enumerate() {
                 LEGACY_WORDS.binary_search(&&word.to_lowercase()[..]).map_err(|_| {
-                    MnemonicError::WordNotFound { index: word_index, word: word.to_string() }
+                    BadMnemonicError::UnknownWords { index: word_index, word: word.to_string() }
                 })?;
             }
 
             let (seed, checksum) = entropy::legacy_1(&*self.words);
             let new_checksum = entropy::crc_8(&seed);
             if checksum != new_checksum {
-                return Err(MnemonicError::ChecksumMismatch);
+                return Err(BadMnemonicError::ChecksumMismatch{ words: self.words.to_vec() });
             }
         } else {
             if !(self.words.len() == 12 || self.words.len() == 24) {
-                return Err(MnemonicError::UnsupportedLength(self.words.len()));
+                return Err(BadMnemonicError::BadLength(self.words.len()));
             }
 
             for (word_index, word) in self.words.iter().enumerate() {
                 BIP39_WORDS.binary_search(&&word.to_lowercase()[..]).map_err(|_| {
-                    MnemonicError::WordNotFound { index: word_index, word: word.to_string() }
+                    BadMnemonicError::UnknownWords { index: word_index, word: word.to_string() }
                 })?;
             }
 
@@ -160,7 +160,7 @@ impl Mnemonic {
             let new_checksum = derive_check_sum_bits(&entropy_bytes);
 
             if new_checksum != checksum_bits {
-                return Err(MnemonicError::ChecksumMismatch);
+                return Err(BadMnemonicError::ChecksumMismatch{ words: self.words.to_vec() });
             }
         }
 
@@ -180,8 +180,8 @@ impl Mnemonic {
         let mut digest = mac.finalize().into_bytes();
         let (key_data, chain_code) = digest.split_at_mut(32);
 
-        for index in [44, 3030, 0, 0].iter() {
-            slip10::derive(key_data, chain_code, *index);
+        for index in [44, 3030, 0, 0] {
+            slip10::derive(key_data, chain_code, index);
         }
 
         let keypair = to_keypair(&key_data).unwrap();
@@ -212,9 +212,9 @@ impl Mnemonic {
 }
 
 impl FromStr for Mnemonic {
-    type Err = MnemonicError;
+    type Err = BadMnemonicError;
 
-    fn from_str(mnemonic: &str) -> Result<Self, MnemonicError> {
+    fn from_str(mnemonic: &str) -> Result<Self, BadMnemonicError> {
         Self::from_words(mnemonic.split(&[',', ' '][..]))
     }
 }
@@ -254,7 +254,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_12() -> Result<(), MnemonicError> {
+    fn should_generate_12_words() -> Result<(), BadMnemonicError> {
         let generate_12 = Mnemonic::generate_12()?;
 
         assert_eq!(generate_12.words.len(), 12);
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_24() -> Result<(), MnemonicError> {
+    fn should_generate_24_words() -> Result<(), BadMnemonicError> {
         let generate_24 = Mnemonic::generate_24()?;
 
         assert_eq!(generate_24.words.len(), 24);
@@ -272,74 +272,116 @@ mod tests {
     }
 
     #[test]
-    fn test_from_string() -> Result<(), MnemonicError> {
-        let mnemonic = Mnemonic::from_str(
-            "combine quiz usual goddess topple bonus give drive target index love volcano",
+    fn generate_12_words_from_string() -> Result<(), BadMnemonicError> {
+        let m = Mnemonic::from_str(
+            "spy,base,tired,useless,rug,riot,ticket,enroll,disorder,kiwi,client,impulse"
         )?;
-        assert_eq!(mnemonic.words.len(), 12);
-        assert_ne!(true, mnemonic.legacy);
+
+        assert_eq!(m.words.len(), 12);
         Ok(())
     }
 
     #[test]
-    fn test_from_words() -> Result<(), MnemonicError> {
-        let vec_of_words: Vec<String> = vec![
-            "combine".to_string(),
-            "quiz".to_string(),
-            "usual".to_string(),
-            "goddess".to_string(),
-            "topple".to_string(),
-            "bonus".to_string(),
-            "give".to_string(),
-            "drive".to_string(),
-            "target".to_string(),
-            "index".to_string(),
-            "love".to_string(),
-            "volcano".to_string(),
-        ];
-        let mnemonic_from_words = Mnemonic::from_words(vec_of_words)?;
-        assert_eq!(mnemonic_from_words.words.len(), 12);
-        assert_ne!(true, mnemonic_from_words.legacy);
+    fn should_detect_an_invalid_checksum() -> Result<(), BadMnemonicError> {
+        let mut m = Mnemonic::generate(24)?;
+        m.words.swap(0, m.words.len() - 1);
+
+        let expected = BadMnemonicError::ChecksumMismatch { words: m.words.to_vec() };
+        let checksum_mismatch = Mnemonic::from_words(m.words.iter()).unwrap_err();
+        assert_eq!(checksum_mismatch, expected);
+
         Ok(())
     }
 
     #[test]
-    fn test_passphrase_to_private_key() -> Result<(), KeyError> {
-        let mnem = Mnemonic::generate(12).unwrap();
-        let private_key = Mnemonic::passphrase_to_private_key(&mnem, "")?;
-        assert_eq!(private_key.to_string().chars().count(), 96);
+    fn should_produce_the_expected_private_key() -> Result<(), KeyError> {
+        let mnemonic = Mnemonic::from_str(
+            "inmate flip alley wear offer often piece magnet surge toddler submit right radio absent pear floor belt raven price stove replace reduce plate home"
+        )?;
+        
+        let expected_key = "302e020100300506032b657004220420853f15aecd22706b105da1d709b4ac05b4906170c2b9c7495dff9af49e1391da";
+        let key = mnemonic.to_private_key("")?;
+        assert_eq!(key.to_string(), expected_key.to_string());
         Ok(())
     }
 
+    // WIP: Needs fix for legacy derive
     #[test]
-    fn test_to_legacy_private_key() -> Result<(), KeyError> {
-        // NOTE: This will fail, waiting on fix for legacy derive
+    fn should_produce_expected_legacy_private_key() -> Result<(), KeyError> {
         let legacy_mnemonic = Mnemonic::from_str(
             "jolly,kidnap,Tom,lawn,drunk,chick,optic,lust,mutter,mole,bride,galley,dense,member,sage,neural,widow,decide,curb,aboard,margin,manure"
-        )
-        .unwrap();
+        )?;
 
-        let legacy2_mnemonic = Mnemonic::from_str(
-            "obvious,favorite,remain,caution,remove,laptop,base,vacant,increase,video,erase,pass,sniff,sausage,knock,grid,argue,salt,romance,way,alone,fever,slush,dune",
-        )
-        .unwrap();
+        let legacy_to_private_key = legacy_mnemonic.to_private_key("")?;
+        let derive_legacy = legacy_to_private_key.derive(-1)?;
 
-        let legacy_private_key = Mnemonic::to_legacy_private_key(&legacy_mnemonic)?;
-        let legacy2_private_key = Mnemonic::to_legacy_private_key(&legacy2_mnemonic)?;
-        assert_eq!(legacy_private_key.to_string(), "302e020100300506032b657004220420882a565ad8cb45643892b5366c1ee1c1ef4a730c5ce821a219ff49b6bf173ddf".to_string());
-        assert_eq!(legacy2_private_key.to_string(), "302e020100300506032b6570042204202b7345f302a10c2a6d55bf8b7af40f125ec41d780957826006d30776f0c441fb".to_string());
+        let expected_legacy_key = "302e020100300506032b657004220420882a565ad8cb45643892b5366c1ee1c1ef4a730c5ce821a219ff49b6bf173ddf";
+
+        assert_eq!(derive_legacy.to_string(), expected_legacy_key.to_string());
+        assert_eq!(legacy_mnemonic.words.len(), 22);
+        Ok(())
+    }
+
+    // WIP: Needs fix for legacy derive
+    #[test]
+    fn legacy2_mnemonic_should_work() -> Result<(), KeyError> {
+        let legacy_mnemonic = Mnemonic::from_str(
+            "obvious,favorite,remain,caution,remove,laptop,base,vacant,increase,video,erase,pass,sniff,sausage,knock,grid,argue,salt,romance,way,alone,fever,slush,dune"
+        )?;
+
+        let legacy_private_key = legacy_mnemonic.to_legacy_private_key()?;
+
+        let expected_legacy_key = "302e020100300506032b6570042204202b7345f302a10c2a6d55bf8b7af40f125ec41d780957826006d30776f0c441fb";
+
+        assert_eq!(legacy_private_key.to_string(), expected_legacy_key.to_string());
+        Ok(())
+    }
+
+    // WIP: Needs fix for legacy derive
+    #[test]
+    fn should_match_my_hbar_wallet_v1() -> Result<(), KeyError> {
+        let mnemonic = Mnemonic::from_str(
+            "jolly kidnap Tom lawn drunk chick optic lust mutter mole bride galley dense member sage neural widow decide curb aboard margin manure"
+        )?;
+
+        let root_private_key = mnemonic.to_legacy_private_key()?;
+        let private_key_mhw = root_private_key.derive(1099511627775)?;
+
+        assert_eq!(private_key_mhw.public_key().to_string(), "302a300506032b657003210045f3a673984a0b4ee404a1f4404ed058475ecd177729daa042e437702f7791e9".to_string());
+        Ok(())
+    }
+
+    // WIP: Needs fix for legacy derive
+    #[test]
+    fn should_match_hedera_keygen_java_for_a_22_word_legacy_phrase() -> Result<(), KeyError> {
+        let mnemonic = Mnemonic::from_str(
+            "jolly,kidnap,tom,lawn,drunk,chick,optic,lust,mutter,mole,bride,galley,dense,member,sage,neural,widow,decide,curb,aboard,margin,manure"
+        )?;
+
+        let root_private_key = mnemonic.to_legacy_private_key()?;
+        let private_key_0 = root_private_key.derive(0)?;
+        let private_key_neg_1 = root_private_key.derive(-1)?;
+
+        assert_eq!(private_key_0.to_string(), "302e020100300506032b657004220420fae0002d2716ea3a60c9cd05ee3c4bb88723b196341b68a02d20975f9d049dc6");
+        assert_eq!(private_key_neg_1.to_string(), "302e020100300506032b657004220420882a565ad8cb45643892b5366c1ee1c1ef4a730c5ce821a219ff49b6bf173ddf");
 
         Ok(())
     }
 
+    // WIP: Needs fix for legacy derive
     #[test]
-    fn test_to_private_key() -> Result<(), KeyError> {
+    fn should_match_hedera_keygen_java_for_a_24_word_legacy_phrase() -> Result<(), KeyError> {
         let mnemonic = Mnemonic::from_str(
-            "inmate flip alley wear offer often piece magnet surge toddler submit right radio absent pear floor belt raven price stove replace reduce plate home",
-        )
-        .unwrap();
-        let private_key = Mnemonic::to_private_key(&mnemonic, "")?;
-        assert_eq!(private_key.to_string(), "302e020100300506032b657004220420853f15aecd22706b105da1d709b4ac05b4906170c2b9c7495dff9af49e1391da".to_string());
+            "obvious,favorite,remain,caution,remove,laptop,base,vacant,increase,video,erase,pass,sniff,sausage,knock,grid,argue,salt,romance,way,alone,fever,slush,dune"
+        )?;
+
+        let root_private_key = mnemonic.to_legacy_private_key()?;
+        let private_key_0 = root_private_key.derive(0)?;
+        let private_key_neg_1 = root_private_key.derive(-1)?;
+
+        assert_eq!(private_key_0.to_string(), "302e020100300506032b6570042204202b7345f302a10c2a6d55bf8b7af40f125ec41d780957826006d30776f0c441fb");
+        assert_eq!(private_key_neg_1.to_string(), "302e020100300506032b657004220420caffc03fdb9853e6a91a5b3c57a5c0031d164ce1c464dea88f3114786b5199e5");
+
         Ok(())
     }
 }

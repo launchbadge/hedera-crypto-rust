@@ -72,7 +72,7 @@ impl PrivateKey {
         crate::PublicKey(self.keypair.public)
     }
 
-    pub fn derive(&self, index: u32) -> Result<Self, KeyError> {
+    pub fn derive(&self, index: i64) -> Result<Self, KeyError> {
         if let Some(mut chain_code) = self.chain_code {
             let mut key_data = self.to_bytes();
 
