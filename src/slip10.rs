@@ -4,7 +4,7 @@ use byteorder::{BigEndian, ByteOrder};
 use hmac::{Hmac, Mac, NewMac};
 use sha2::Sha512;
 
-pub fn derive(key_data: &mut [u8], chain_code: &mut [u8], index: u32) {
+pub fn derive(key_data: &mut [u8], chain_code: &mut [u8], index: i64) {
     thread_local! {
         static BUF: RefCell<[u8; 37]> = RefCell::new([0; 37]);
     }
@@ -15,7 +15,7 @@ pub fn derive(key_data: &mut [u8], chain_code: &mut [u8], index: u32) {
         buf[0] = 0;
         buf[1..33].copy_from_slice(&key_data);
 
-        BigEndian::write_u32(&mut buf[33..], index);
+        BigEndian::write_u32(&mut buf[33..], index as u32);
 
         buf[33] |= 128;
 
