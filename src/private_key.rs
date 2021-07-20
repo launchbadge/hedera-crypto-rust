@@ -91,7 +91,6 @@ impl PrivateKey {
     }
 
     pub fn from_mnemonic(mnemonic: Mnemonic, passphrase: &str) -> Result<PrivateKey, KeyError> {
-        println!("from mnemonic");
         Mnemonic::to_private_key(&mnemonic, passphrase)
     }
 
@@ -107,20 +106,6 @@ impl PrivateKey {
             Self::from_bytes(private_doc.as_ref())
         }
     }
-
-    // pub fn to_pem(&self, passphrase: &str) -> Result<Vec<u8>, KeyError> {
-    //     let priv_info = PrivateKeyInfo::new(AlgorithmIdentifier {oid: ObjectIdentifier::new("1.2.840.113549.1.1.1"), parameters: None},&Self::to_bytes(self));
-    //     if passphrase.len() > 0 {
-    //         priv_info.encrypt(, passphrase.as_bytes());
-    //         Ok(priv_info.private_key_to_pem_pkcs8_passphrase(Cipher::aes_128_cbc(), passphrase.as_bytes())?)
-    //     } else {
-    //         Ok(priv_info.to_pem())
-    //     }
-    // }
-
-    // pub fn from_keystore(keystore_bytes: &[u8]) -> PrivateKey {
-    //     let load_keystore = keystore_bytes.load_keystore();
-    // }
 }
 
 impl Hash for PrivateKey {
@@ -169,8 +154,8 @@ mod tests {
 
     const PRIVATE_KEY_STR: &str = "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10";
     const PRIVATE_KEY_BYTES: &[u8] = &[
-        37, 72, 75, 126, 114, 100, 78, 40, 15, 44, 29, 64, 96, 23, 58, 11, 116, 50, 122, 15, 69,
-        113, 57, 55, 119, 50, 57, 68, 126, 83, 114, 16,
+        219, 72, 75, 130, 142, 100, 178, 216, 241, 44, 227, 192, 160, 233, 58, 11, 140, 206, 122,
+        241, 187, 143, 57, 201, 119, 50, 57, 68, 130, 83, 142, 16,
     ];
     const IOS_MNEMONIC_WALLET: &str = "tiny denial casual grass skull spare awkward indoor ethics dash enough flavor good daughter early hard rug staff capable swallow raise flavor empty angle";
 
@@ -261,22 +246,14 @@ mod tests {
         Ok(())
     }
 
-    // #[test]
-    // fn test_to_encrypted_pem() -> Result<(), KeyError> {
-    //     let pem: &[u8] = &PrivateKey::to_pem(PEM_PASSPHRASE)?;
-    //     let pkey = PKey::private_key_from_pem(pem)?;
-    //     Ok(())
-    // }
-
     #[test]
     fn test_derive() -> Result<(), KeyError> {
         let ios_wallet_key_bytes = hex::decode(IOS_WALLET_PRIV_KEY).unwrap();
-        let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET);
-        println!("yes");
-        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic.unwrap(), "").unwrap();
+        let ios_mnemonic = Mnemonic::from_str(IOS_MNEMONIC_WALLET)?;
+        let ios_key = PrivateKey::from_mnemonic(ios_mnemonic, "").unwrap();
         let ios_child_key = PrivateKey::derive(&ios_key, 0)?;
 
-        assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes);
+        assert_eq!(ios_child_key.to_bytes().to_vec(), ios_wallet_key_bytes[..32]);
 
         Ok(())
     }
