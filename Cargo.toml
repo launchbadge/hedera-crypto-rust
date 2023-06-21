@@ -28,7 +28,7 @@ num-bigint = "0.4.0"
 itertools = "0.10.1"
 cipher = { version="0.3.0", features=["std"] }
 byteorder = "1.4.3"
-openssl = "0.10.35"
+openssl = "0.10.55"
 pkcs8 = { version="0.7.0", features=["pem", "encryption"] }
 const-oid = "0.6.0"
 
